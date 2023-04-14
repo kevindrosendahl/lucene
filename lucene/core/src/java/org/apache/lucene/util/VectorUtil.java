@@ -112,7 +112,7 @@ public final class VectorUtil {
       impl = MethodHandles.lookup().findStatic(clazz, "dotProduct", DOTPRODUCT_TYPE);
       vectorSupported = true;
     } catch (Throwable e) {
-
+      System.out.println("e = " + e);
     }
 
     DOTPRODUCT = impl;
