@@ -8,3 +8,14 @@ java_library(
         # Add necessary dependencies here
     ],
 )
+
+java_library(
+    name = "lucene-core-19",
+    srcs = glob(["lucene/core/src/java/**/*.java", "lucene/core/src/java19/**/*.java"]),
+    resources = glob(["lucene/core/src/resources/**/*"]),
+    resource_strip_prefix = "lucene/core/src/resources",
+    visibility = ["//visibility:public"],
+    deps = [
+        # Add necessary dependencies here
+    ],
+)
