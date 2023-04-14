@@ -20,6 +20,7 @@ package org.apache.lucene.util;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Arrays;
 import java.util.Base64;
 
 /** Utilities for computations with numeric arrays */
@@ -109,6 +110,7 @@ public final class VectorUtil {
       Class<?> clazz =
           new Loader(VectorUtil.class.getClassLoader())
               .define(Base64.getMimeDecoder().decode(SIMD_BASE64));
+      System.out.println("clazz.getMethods() = " + Arrays.toString(clazz.getMethods()));
       impl = MethodHandles.lookup().findStatic(clazz, "dotProduct", DOTPRODUCT_TYPE);
       vectorSupported = true;
     } catch (Throwable e) {
