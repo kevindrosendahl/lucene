@@ -6,5 +6,4 @@ java_library(
     deps = [
         # Add necessary dependencies here
     ],
-    javacopts = ["--no-turbine"],
 )
