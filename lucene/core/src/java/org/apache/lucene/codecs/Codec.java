@@ -19,6 +19,7 @@ package org.apache.lucene.codecs;
 import java.util.Objects;
 import java.util.ServiceLoader; // javadocs
 import java.util.Set;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.index.IndexWriterConfig; // javadocs
 import org.apache.lucene.util.NamedSPILoader;
 
@@ -138,12 +139,7 @@ public abstract class Codec implements NamedSPILoader.NamedSPI {
 
   /** expert: returns the default codec used for newly created {@link IndexWriterConfig}s. */
   public static Codec getDefault() {
-    if (Holder.defaultCodec == null) {
-      throw new IllegalStateException(
-          "You tried to lookup the default Codec before all Codecs could be initialized. "
-              + "This likely happens if you try to get it from a Codec's ctor.");
-    }
-    return Holder.defaultCodec;
+    return new Lucene95Codec();
   }
 
   /** expert: sets the default codec used for newly created {@link IndexWriterConfig}s. */
