@@ -1,3 +1,6 @@
+package(default_java_toolchain = "@bazel_tools//tools/jdk:toolchain_hostjdk11")
+
+
 java_library(
     name = "lucene-core",
     srcs = glob(["lucene/core/src/java/**/*.java"]),
