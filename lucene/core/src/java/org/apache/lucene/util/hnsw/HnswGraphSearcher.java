@@ -20,9 +20,15 @@ package org.apache.lucene.util.hnsw;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.MemorySession;
+import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BitSet;
@@ -97,29 +103,33 @@ public class HnswGraphSearcher<T> {
               + " differs from field dimension: "
               + vectors.dimension());
     }
-    HnswGraphSearcher<float[]> graphSearcher =
-        new HnswGraphSearcher<>(
-            vectorEncoding,
-            similarityFunction,
-            new NeighborQueue(topK, true),
-            new SparseFixedBitSet(vectors.size()));
-    NeighborQueue results;
-    int[] eps = new int[] {graph.entryNode()};
-    int numVisited = 0;
-    for (int level = graph.numLevels() - 1; level >= 1; level--) {
-      results = graphSearcher.searchLevel(query, 1, level, eps, vectors, graph, null, visitedLimit);
-      numVisited += results.visitedCount();
-      visitedLimit -= results.visitedCount();
-      if (results.incomplete()) {
-        results.setVisitedCount(numVisited);
-        return results;
+    try (MemorySession session = MemorySession.openConfined()) {
+      MemorySegment queryMemory = session.allocateArray(LAYOUT_LE_FLOAT, query);
+
+      HnswGraphSearcher<float[]> graphSearcher =
+          new HnswGraphSearcher<>(
+              vectorEncoding,
+              similarityFunction,
+              new NeighborQueue(topK, true),
+              new SparseFixedBitSet(vectors.size()));
+      NeighborQueue results;
+      int[] eps = new int[] {graph.entryNode()};
+      int numVisited = 0;
+      for (int level = graph.numLevels() - 1; level >= 1; level--) {
+        results = graphSearcher.searchLevel(query, queryMemory, 1, level, eps, vectors, graph, null, visitedLimit);
+        numVisited += results.visitedCount();
+        visitedLimit -= results.visitedCount();
+        if (results.incomplete()) {
+          results.setVisitedCount(numVisited);
+          return results;
+        }
+        eps[0] = results.pop();
       }
-      eps[0] = results.pop();
+      results =
+          graphSearcher.searchLevel(query, queryMemory, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
+      results.setVisitedCount(results.visitedCount() + numVisited);
+      return results;
     }
-    results =
-        graphSearcher.searchLevel(query, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
-    results.setVisitedCount(results.visitedCount() + numVisited);
-    return results;
   }
 
   /**
@@ -163,7 +173,7 @@ public class HnswGraphSearcher<T> {
     int[] eps = new int[] {graph.entryNode()};
     int numVisited = 0;
     for (int level = graph.numLevels() - 1; level >= 1; level--) {
-      results = graphSearcher.searchLevel(query, 1, level, eps, vectors, graph, null, visitedLimit);
+      results = graphSearcher.searchLevel(query, null, 1, level, eps, vectors, graph, null, visitedLimit);
 
       numVisited += results.visitedCount();
       visitedLimit -= results.visitedCount();
@@ -175,7 +185,7 @@ public class HnswGraphSearcher<T> {
       eps[0] = results.pop();
     }
     results =
-        graphSearcher.searchLevel(query, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
+        graphSearcher.searchLevel(query, null, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
     results.setVisitedCount(results.visitedCount() + numVisited);
     return results;
   }
@@ -203,11 +213,12 @@ public class HnswGraphSearcher<T> {
       RandomAccessVectorValues<T> vectors,
       HnswGraph graph)
       throws IOException {
-    return searchLevel(query, topK, level, eps, vectors, graph, null, Integer.MAX_VALUE);
+    return searchLevel(query, null,  topK, level, eps, vectors, graph, null, Integer.MAX_VALUE);
   }
 
   private NeighborQueue searchLevel(
       T query,
+      MemorySegment queryMemory,
       int topK,
       int level,
       final int[] eps,
@@ -227,7 +238,7 @@ public class HnswGraphSearcher<T> {
           results.markIncomplete();
           break;
         }
-        float score = compare(query, vectors, ep);
+        float score = compare(query, queryMemory, vectors, ep);
         numVisited++;
         candidates.add(ep, score);
         if (acceptOrds == null || acceptOrds.get(ep)) {
@@ -262,7 +273,7 @@ public class HnswGraphSearcher<T> {
           results.markIncomplete();
           break;
         }
-        float friendSimilarity = compare(query, vectors, friendOrd);
+        float friendSimilarity = compare(query, queryMemory, vectors, friendOrd);
         numVisited++;
         if (friendSimilarity >= minAcceptedSimilarity) {
           candidates.add(friendOrd, friendSimilarity);
@@ -281,17 +292,48 @@ public class HnswGraphSearcher<T> {
     return results;
   }
 
-  private float compare(T query, RandomAccessVectorValues<T> vectors, int ord) throws IOException {
+  private float compare(T query, MemorySegment queryMemory, RandomAccessVectorValues<T> vectors, int ord) throws IOException {
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
-      return compare((float[]) query, vectors.vectorSegment(ord));
+      if (queryMemory == null) {
+        return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
+      }
+
+      return compare(queryMemory, vectors.vectorSegment(ord), vectors.dimension());
     }
   }
 
+
   private static final ValueLayout.OfFloat LAYOUT_LE_FLOAT =
       ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
-  
+
+  private static final MethodHandle DOT_PRODUCT;
+
+  static {
+    try (MemorySession session = MemorySession.openConfined()) {
+      SymbolLookup lookup =
+          SymbolLookup.libraryLookup("vector_similarity", session);
+      MemorySegment func = lookup.lookup("dot_product_avx512").get();
+      FunctionDescriptor descriptor =
+          FunctionDescriptor.of(
+              ValueLayout.JAVA_FLOAT,
+              ValueLayout.ADDRESS,
+              ValueLayout.ADDRESS,
+              ValueLayout.JAVA_INT);
+      DOT_PRODUCT = Linker.nativeLinker().downcallHandle(func, descriptor);
+    }
+  }
+
+  private static float compare(MemorySegment query, MemorySegment ordSegment, int len) {
+    try {
+      return (float) DOT_PRODUCT.invokeExact(query.address(), ordSegment.address(), len);
+    } catch (Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }
+
+
   private static float compare(float[] query, MemorySegment ordSegment) {
     float res = 0f;
     /*
