@@ -41,6 +41,8 @@ public interface RandomAccessVectorValues<T> {
    */
   T vectorValue(int targetOrd) throws IOException;
 
+  DataInput.VectorComparable vectorComparable(int targetOrd) throws IOException
+
   /**
    * Creates a new copy of this {@link RandomAccessVectorValues}. This is helpful when you need to
    * access different values at once, to avoid overwriting the underlying float vector returned by

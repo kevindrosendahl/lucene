@@ -282,7 +282,7 @@ public class HnswGraphSearcher<T> {
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
-      return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
+      return vectors.vectorComparable(ord).compare((float[]) query);
     }
   }
 
