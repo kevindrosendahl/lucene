@@ -25,7 +25,6 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -35,24 +34,28 @@ import jdk.incubator.vector.VectorSpecies;
 public final class VectorUtil {
 
   private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
-  private static final MethodHandle DOT_PRODUCT_NATIVE;
+  private static MethodHandle DOT_PRODUCT_NATIVE;
 
   static {
-    Arena arena = Arena.openShared();
+    try {
+      Arena arena = Arena.openShared();
 
-    SymbolLookup lookup =
-        SymbolLookup.libraryLookup(
-                "vector_similarity",
-            arena.scope());
-    MemorySegment func = lookup.find("dot_product").get();
-    FunctionDescriptor descriptor =
-        FunctionDescriptor.of(
-            ValueLayout.JAVA_FLOAT,
-            ValueLayout.ADDRESS,
-            ValueLayout.ADDRESS,
-            ValueLayout.JAVA_INT);
+      SymbolLookup lookup =
+          SymbolLookup.libraryLookup(
+              "vector_similarity",
+              arena.scope());
+      MemorySegment func = lookup.find("dot_product").get();
+      FunctionDescriptor descriptor =
+          FunctionDescriptor.of(
+              ValueLayout.JAVA_FLOAT,
+              ValueLayout.ADDRESS,
+              ValueLayout.ADDRESS,
+              ValueLayout.JAVA_INT);
 
-    DOT_PRODUCT_NATIVE = Linker.nativeLinker().downcallHandle(func, descriptor);
+      DOT_PRODUCT_NATIVE = Linker.nativeLinker().downcallHandle(func, descriptor);
+    } catch (Throwable t) {
+      System.out.println("couldn't find native implementation of dot product");
+    }
   }
 
   public enum DotProductImpl {
