@@ -18,6 +18,7 @@
 package org.apache.lucene.util.hnsw;
 
 import java.io.IOException;
+import org.apache.lucene.store.DataInput;
 
 /**
  * Provides random access to vectors by dense ordinal. This interface is used by HNSW-based

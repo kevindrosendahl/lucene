@@ -21,6 +21,7 @@ import java.io.IOException;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Bits;
@@ -99,6 +100,12 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     }
 
     @Override
+    public DataInput.VectorComparable vectorComparable() throws IOException {
+      slice.seek((long) doc * byteSize);
+      return slice.readVectorComparable(0, value.length);
+    }
+
+    @Override
     public int docID() {
       return doc;
     }
@@ -171,6 +178,12 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     }
 
     @Override
+    public DataInput.VectorComparable vectorComparable() throws IOException {
+      slice.seek((long) (disi.index()) * byteSize);
+      return slice.readVectorComparable(0, value.length);
+    }
+
+    @Override
     public int docID() {
       return disi.docID();
     }
@@ -235,6 +248,11 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
 
     @Override
     public float[] vectorValue() throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public DataInput.VectorComparable vectorComparable() throws IOException {
       throw new UnsupportedOperationException();
     }
 

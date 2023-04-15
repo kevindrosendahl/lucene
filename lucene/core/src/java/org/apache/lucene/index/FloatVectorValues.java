@@ -19,6 +19,7 @@ package org.apache.lucene.index;
 import java.io.IOException;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.DataInput;
 
 /**
  * This class provides access to per-document floating point vector values indexed as {@link
@@ -57,4 +58,6 @@ public abstract class FloatVectorValues extends DocIdSetIterator {
    * @return the vector value
    */
   public abstract float[] vectorValue() throws IOException;
+
+  public abstract DataInput.VectorComparable vectorComparable() throws IOException;
 }
