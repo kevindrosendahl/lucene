@@ -105,12 +105,6 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     }
 
     @Override
-    public DataInput.VectorComparable vectorComparable() throws IOException {
-      slice.seek((long) doc * byteSize);
-      return slice.readVectorComparable(0, value.length);
-    }
-
-    @Override
     public int docID() {
       return doc;
     }
@@ -183,12 +177,6 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     }
 
     @Override
-    public DataInput.VectorComparable vectorComparable() throws IOException {
-      slice.seek((long) (disi.index()) * byteSize);
-      return slice.readVectorComparable(0, value.length);
-    }
-
-    @Override
     public int docID() {
       return disi.docID();
     }
@@ -253,11 +241,6 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
 
     @Override
     public float[] vectorValue() throws IOException {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DataInput.VectorComparable vectorComparable() throws IOException {
       throw new UnsupportedOperationException();
     }
 

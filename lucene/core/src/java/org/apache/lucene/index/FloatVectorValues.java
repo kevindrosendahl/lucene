@@ -58,6 +58,4 @@ public abstract class FloatVectorValues extends DocIdSetIterator {
    * @return the vector value
    */
   public abstract float[] vectorValue() throws IOException;
-
-  public abstract DataInput.VectorComparable vectorComparable() throws IOException;
 }
