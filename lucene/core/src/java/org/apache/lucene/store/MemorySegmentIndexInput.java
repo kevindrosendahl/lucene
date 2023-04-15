@@ -266,7 +266,7 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
                 + curSegment.get(ValueLayout.JAVA_FLOAT, i + 30) * vector[i + 30]
                 + curSegment.get(ValueLayout.JAVA_FLOAT, i + 31) * vector[i + 31];
       }
-      for (; i + 7 < a.length; i += 8) {
+      for (; i + 7 < vector.length; i += 8) {
         res +=
             curSegment.get(ValueLayout.JAVA_FLOAT, i + 0) * vector[i + 0]
                 + curSegment.get(ValueLayout.JAVA_FLOAT, i + 1) * vector[i + 1]
