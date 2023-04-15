@@ -17,109 +17,51 @@
 
 package org.apache.lucene.util;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.util.Arrays;
-import java.util.Base64;
+import java.nio.ByteOrder;
+import java.nio.file.Path;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorOperators;
+import jdk.incubator.vector.VectorSpecies;
 
 /** Utilities for computations with numeric arrays */
 @SuppressWarnings("unused")
 public final class VectorUtil {
 
-  // org.apache.lucene.util.VectorUtilSIMD#dotProduct(float[], float[])
-  private static final String SIMD_BASE64 =
-      "yv66vgAAADwAbQoAAgADBwAEDAAFAAYBABBqYXZhL2xhbmcvT2JqZWN0AQAGPGluaXQ+AQADKClW\n"
-          + "BwAIAQAiamF2YS9sYW5nL0lsbGVnYWxBcmd1bWVudEV4Y2VwdGlvbhIAAAAKDAALAAwBABdtYWtl\n"
-          + "Q29uY2F0V2l0aENvbnN0YW50cwEAFihJSSlMamF2YS9sYW5nL1N0cmluZzsKAAcADgwABQAPAQAV\n"
-          + "KExqYXZhL2xhbmcvU3RyaW5nOylWCQARABIHABMMABQAFQEAJW9yZy9hcGFjaGUvbHVjZW5lL3V0\n"
-          + "aWwvVmVjdG9yVXRpbFNJTUQBAAdTUEVDSUVTAQAkTGpkay9pbmN1YmF0b3IvdmVjdG9yL1ZlY3Rv\n"
-          + "clNwZWNpZXM7CwAXABgHABkMABoAGwEAImpkay9pbmN1YmF0b3IvdmVjdG9yL1ZlY3RvclNwZWNp\n"
-          + "ZXMBAAZsZW5ndGgBAAMoKUkKAB0AHgcAHwwAIAAhAQAgamRrL2luY3ViYXRvci92ZWN0b3IvRmxv\n"
-          + "YXRWZWN0b3IBAAR6ZXJvAQBIKExqZGsvaW5jdWJhdG9yL3ZlY3Rvci9WZWN0b3JTcGVjaWVzOylM\n"
-          + "amRrL2luY3ViYXRvci92ZWN0b3IvRmxvYXRWZWN0b3I7CwAXACMMACQAJQEACWxvb3BCb3VuZAEA\n"
-          + "BChJKUkKAB0AJwwAKAApAQAJZnJvbUFycmF5AQBLKExqZGsvaW5jdWJhdG9yL3ZlY3Rvci9WZWN0\n"
-          + "b3JTcGVjaWVzO1tGSSlMamRrL2luY3ViYXRvci92ZWN0b3IvRmxvYXRWZWN0b3I7CgAdACsMACwA\n"
-          + "LQEAA211bAEAQShMamRrL2luY3ViYXRvci92ZWN0b3IvVmVjdG9yOylMamRrL2luY3ViYXRvci92\n"
-          + "ZWN0b3IvRmxvYXRWZWN0b3I7CgAdAC8MADAALQEAA2FkZAkAMgAzBwA0DAA1ADYBACRqZGsvaW5j\n"
-          + "dWJhdG9yL3ZlY3Rvci9WZWN0b3JPcGVyYXRvcnMBAANBREQBADJMamRrL2luY3ViYXRvci92ZWN0\n"
-          + "b3IvVmVjdG9yT3BlcmF0b3JzJEFzc29jaWF0aXZlOwoAHQA4DAA5ADoBAAtyZWR1Y2VMYW5lcwEA\n"
-          + "NShMamRrL2luY3ViYXRvci92ZWN0b3IvVmVjdG9yT3BlcmF0b3JzJEFzc29jaWF0aXZlOylGCQAd\n"
-          + "ADwMAD0AFQEAEVNQRUNJRVNfUFJFRkVSUkVEAQAJU2lnbmF0dXJlAQA3TGpkay9pbmN1YmF0b3Iv\n"
-          + "dmVjdG9yL1ZlY3RvclNwZWNpZXM8TGphdmEvbGFuZy9GbG9hdDs+OwEABENvZGUBAA9MaW5lTnVt\n"
-          + "YmVyVGFibGUBABJMb2NhbFZhcmlhYmxlVGFibGUBAAR0aGlzAQAnTG9yZy9hcGFjaGUvbHVjZW5l\n"
-          + "L3V0aWwvVmVjdG9yVXRpbFNJTUQ7AQAKZG90UHJvZHVjdAEAByhbRltGKUYBAAJ2YQEAIkxqZGsv\n"
-          + "aW5jdWJhdG9yL3ZlY3Rvci9GbG9hdFZlY3RvcjsBAAJ2YgEAAnZjAQACdmQBAARhY2MxAQAEYWNj\n"
-          + "MgEACnVwcGVyQm91bmQBAAFJAQABYQEAAltGAQABYgEAAWkBAANyZXMBAAFGAQANU3RhY2tNYXBU\n"
-          + "YWJsZQcAUQEACDxjbGluaXQ+AQAKU291cmNlRmlsZQEAE1ZlY3RvclV0aWxTSU1ELmphdmEBABBC\n"
-          + "b290c3RyYXBNZXRob2RzDwYAXQoAXgBfBwBgDAALAGEBACRqYXZhL2xhbmcvaW52b2tlL1N0cmlu\n"
-          + "Z0NvbmNhdEZhY3RvcnkBAJgoTGphdmEvbGFuZy9pbnZva2UvTWV0aG9kSGFuZGxlcyRMb29rdXA7\n"
-          + "TGphdmEvbGFuZy9TdHJpbmc7TGphdmEvbGFuZy9pbnZva2UvTWV0aG9kVHlwZTtMamF2YS9sYW5n\n"
-          + "L1N0cmluZztbTGphdmEvbGFuZy9PYmplY3Q7KUxqYXZhL2xhbmcvaW52b2tlL0NhbGxTaXRlOwgA\n"
-          + "YwEAHnZlY3RvciBkaW1lbnNpb25zIGRpZmZlcjogASE9AQEADElubmVyQ2xhc3NlcwcAZgEAMGpk\n"
-          + "ay9pbmN1YmF0b3IvdmVjdG9yL1ZlY3Rvck9wZXJhdG9ycyRBc3NvY2lhdGl2ZQEAC0Fzc29jaWF0\n"
-          + "aXZlBwBpAQAlamF2YS9sYW5nL2ludm9rZS9NZXRob2RIYW5kbGVzJExvb2t1cAcAawEAHmphdmEv\n"
-          + "bGFuZy9pbnZva2UvTWV0aG9kSGFuZGxlcwEABkxvb2t1cAAhABEAAgAAAAEAGgAUABUAAQA+AAAA\n"
-          + "AgA/AAMAAQAFAAYAAQBAAAAALwABAAEAAAAFKrcAAbEAAAACAEEAAAAGAAEAAAAZAEIAAAAMAAEA\n"
-          + "AAAFAEMARAAAAAkARQBGAAEAQAAAAewABAALAAAA6Cq+K76fABS7AAdZKr4rvroACQAAtwANvwM9\n"
-          + "C0YqvgWyABC5ABYBAGihAKiyABC4ABw6BLIAELgAHDoFsgAQKr6yABC5ABYBAGS5ACICADYGHBUG\n"
-          + "ogBpsgAQKhy4ACY6B7IAECscuAAmOggZBBkHGQi2ACq2AC46BLIAECocsgAQuQAWAQBguAAmOgmy\n"
-          + "ABArHLIAELkAFgEAYLgAJjoKGQUZCRkKtgAqtgAuOgUcBbIAELkAFgEAaGA9p/+XJRkEsgAxtgA3\n"
-          + "GQWyADG2ADdiYkYcKr6iABMlKxwwKhwwamJGhAIBp//tJa4AAAADAEEAAABWABUAAAAhAAcAIgAY\n"
-          + "ACQAGgAlABwAKAArACkAMwAqADsAKwBQACwAVgAtAGAALgBqAC8AeAAwAIsAMQCeADIArAAsALwA\n"
-          + "NADQADYA1gA3AOAANgDmADkAQgAAAHAACwBgAEwARwBIAAcAagBCAEkASAAIAIsAIQBKAEgACQCe\n"
-          + "AA4ASwBIAAoAMwCdAEwASAAEADsAlQBNAEgABQBQAIAATgBPAAYAAADoAFAAUQAAAAAA6ABSAFEA\n"
-          + "AQAaAM4AUwBPAAIAHADMAFQAVQADAFYAAAAgAAUY/wA3AAcHAFcHAFcBAgcAHQcAHQEAAPsAa/gA\n"
-          + "ExUACABYAAYAAQBAAAAAHwABAAAAAAAHsgA7swAQsQAAAAEAQQAAAAYAAQAAABoAAwBZAAAAAgBa\n"
-          + "AFsAAAAIAAEAXAABAGIAZAAAABIAAgBlADIAZwYJAGgAagBsABk=";
-
-  private static final MethodHandle DOTPRODUCT;
-  private static final MethodType DOTPRODUCT_TYPE =
-      MethodType.methodType(float.class, float[].class, float[].class);
-
-  static final class Loader extends ClassLoader {
-    Loader(ClassLoader parent) {
-      super(parent);
-    }
-
-    public Class<?> define(byte[] code) {
-      return defineClass("org.apache.lucene.util.VectorUtilSIMD", code, 0, code.length);
-    }
-  }
-
-  /**
-   * True if vectorized dot product is supported.
-   *
-   * <p>For this to work, you need java 16, and you need to opt-in by passing {@code --add-modules
-   * jdk.incubator.vector} to the java command line.
-   */
-  public static final boolean DOTPRODUCT_VECTORIZATION_SUPPORTED;
+  private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
+  private static final MethodHandle DOT_PRODUCT_NATIVE;
 
   static {
-    MethodHandle impl = null;
-    boolean vectorSupported = false;
+    Arena arena = Arena.openShared();
 
-    try {
-      impl =
-          MethodHandles.lookup().findStatic(VectorUtil.class, "dotProductScalar", DOTPRODUCT_TYPE);
-    } catch (NoSuchMethodException | IllegalAccessException e) {
-      throw new RuntimeException(e);
-    }
+    SymbolLookup lookup =
+        SymbolLookup.libraryLookup(
+                "vector_similarity",
+            arena.scope());
+    MemorySegment func = lookup.find("dot_product").get();
+    FunctionDescriptor descriptor =
+        FunctionDescriptor.of(
+            ValueLayout.JAVA_FLOAT,
+            ValueLayout.ADDRESS,
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_INT);
 
-    try {
-      Class<?> clazz =
-          new Loader(VectorUtil.class.getClassLoader())
-              .define(Base64.getMimeDecoder().decode(SIMD_BASE64));
-      System.out.println("clazz.getMethods() = " + Arrays.toString(clazz.getMethods()));
-      impl = MethodHandles.lookup().findStatic(clazz, "dotProduct", DOTPRODUCT_TYPE);
-      vectorSupported = true;
-    } catch (Throwable e) {
-      System.out.println("e = " + e);
-    }
-
-    DOTPRODUCT = impl;
-    DOTPRODUCT_VECTORIZATION_SUPPORTED = vectorSupported;
+    DOT_PRODUCT_NATIVE = Linker.nativeLinker().downcallHandle(func, descriptor);
   }
+
+  public enum DotProductImpl {
+    SCALAR,
+    JAVA_SIMD,
+    NATIVE;
+  }
+
+  public static DotProductImpl DOT_PRODUCT_IMPL = DotProductImpl.JAVA_SIMD;
 
   private VectorUtil() {}
 
@@ -129,13 +71,52 @@ public final class VectorUtil {
    * @throws IllegalArgumentException if the vectors' dimensions differ.
    */
   public static float dotProduct(float[] a, float[] b) {
-    try {
-      return (float) DOTPRODUCT.invokeExact(a, b);
-    } catch (RuntimeException e) {
-      throw e;
-    } catch (Throwable e) {
-      throw new RuntimeException(e);
+    return switch (DOT_PRODUCT_IMPL) {
+      case SCALAR -> dotProductScalar(a, b);
+      case JAVA_SIMD -> dotProductSimd(a, b);
+      case NATIVE -> throw new RuntimeException("cannot use native with heap arrays");
+    };
+  }
+
+  public static float dotProduct(MemorySegment a, MemorySegment b, int length) {
+    return switch (DOT_PRODUCT_IMPL) {
+      case SCALAR -> throw new RuntimeException("cannot use scalar with memory segments");
+      case JAVA_SIMD -> dotProductSimdSegment(a, b, length);
+      case NATIVE -> {
+        try {
+          yield (float) DOT_PRODUCT_NATIVE.invokeExact(a, b, length);
+        } catch (Throwable t) {
+          throw new RuntimeException(t);
+        }
+      }
+    };
+  }
+
+  public static float dotProductSimd(float[] a, float[] b) {
+    if (a.length != b.length) {
+      throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
     }
+
+    int i = 0;
+    float res = 0;
+
+    FloatVector acc1 = FloatVector.zero(SPECIES);
+    FloatVector acc2 = FloatVector.zero(SPECIES);
+    int upperBound = SPECIES.loopBound(a.length - SPECIES.length());
+    for (; i < upperBound; i += 2 * SPECIES.length()) {
+      FloatVector va = FloatVector.fromArray(SPECIES, a, i);
+      FloatVector vb = FloatVector.fromArray(SPECIES, b, i);
+      acc1 = acc1.add(va.mul(vb));
+      FloatVector vc = FloatVector.fromArray(SPECIES, a, i + SPECIES.length());
+      FloatVector vd = FloatVector.fromArray(SPECIES, b, i + SPECIES.length());
+      acc2 = acc2.add(vc.mul(vd));
+    }
+    res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
+
+    for (; i < a.length; i++) {
+      res += b[i] * a[i];
+    }
+    return res;
   }
 
   public static float dotProductScalar(float[] a, float[] b) {
@@ -202,6 +183,29 @@ public final class VectorUtil {
               + b[i + 5] * a[i + 5]
               + b[i + 6] * a[i + 6]
               + b[i + 7] * a[i + 7];
+    }
+    return res;
+  }
+
+  static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int length) {
+    int i = 0;
+    float res = 0;
+
+    FloatVector acc1 = FloatVector.zero(SPECIES);
+    FloatVector acc2 = FloatVector.zero(SPECIES);
+    int upperBound = SPECIES.loopBound(length - SPECIES.length());
+    for (; i < upperBound; i += 2 * SPECIES.length()) {
+      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, i, ByteOrder.LITTLE_ENDIAN);
+      acc1 = acc1.add(va.mul(vb));
+      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, i + SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, i + SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      acc2 = acc2.add(vc.mul(vd));
+    }
+    res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
+
+    for (; i < length; i++) {
+      res += b.get(ValueLayout.JAVA_FLOAT, i) * a.get(ValueLayout.JAVA_FLOAT, i);
     }
     return res;
   }
