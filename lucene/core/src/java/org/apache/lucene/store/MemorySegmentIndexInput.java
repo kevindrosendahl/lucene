@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.VectorUtil;
 
 /**
  * Base IndexInput implementation that uses an array of MemorySegments to represent a file.
@@ -208,6 +209,76 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     } catch (NullPointerException | IllegalStateException e) {
       throw alreadyClosed(e);
     }
+  }
+
+  @Override
+  public VectorComparable readVectorComparable(int offset, int len) {
+    return vector -> {
+      float res = 0f;
+      /*
+       * If length of vector is larger than 8, we use unrolled dot product to accelerate the
+       * calculation.
+       */
+      int i;
+      for (i = 0; i < vector.length % 8; i++) {
+        res += curSegment.get(ValueLayout.JAVA_FLOAT, i) * vector[i];
+      }
+
+      if (vector.length < 8) {
+        return res;
+      }
+
+      for (; i + 31 < vector.length; i += 32) {
+        res +=
+            curSegment.get(ValueLayout.JAVA_FLOAT, i + 00 * vector[i + 0]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 1) * vector[i + 1]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 2) * vector[i + 2]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 3) * vector[i + 3]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 4) * vector[i + 4]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 5) * vector[i + 5]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 6) * vector[i + 6]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 7) * vector[i + 7];
+        res +=
+            curSegment.get(ValueLayout.JAVA_FLOAT, i + 8) * vector[i + 8]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 9) * vector[i + 9]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 10) * vector[i + 10]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 11) * vector[i + 11]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 12) * vector[i + 12]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 13) * vector[i + 13]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 14) * vector[i + 14]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 15) * vector[i + 15];
+        res +=
+            curSegment.get(ValueLayout.JAVA_FLOAT, i + 16) * vector[i + 16]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 17) * vector[i + 17]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 18) * vector[i + 18]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 19) * vector[i + 19]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 20) * vector[i + 20]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 21) * vector[i + 21]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 22) * vector[i + 22]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 23) * vector[i + 23];
+        res +=
+            curSegment.get(ValueLayout.JAVA_FLOAT, i + 24) * vector[i + 24]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 25) * vector[i + 25]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 26) * vector[i + 26]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 27) * vector[i + 27]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 28) * vector[i + 28]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 29) * vector[i + 29]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 30) * vector[i + 30]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 31) * vector[i + 31];
+      }
+      for (; i + 7 < a.length; i += 8) {
+        res +=
+            curSegment.get(ValueLayout.JAVA_FLOAT, i + 0) * vector[i + 0]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 1) * vector[i + 1]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 2) * vector[i + 2]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 3) * vector[i + 3]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 4) * vector[i + 4]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 5) * vector[i + 5]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 6) * vector[i + 6]
+                + curSegment.get(ValueLayout.JAVA_FLOAT, i + 7) * vector[i + 7];
+      }
+      return res;
+    };
   }
 
   @Override

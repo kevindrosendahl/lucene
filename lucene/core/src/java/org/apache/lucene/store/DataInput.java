@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.VectorUtil;
 
 /**
  * Abstract base class for performing read operations of Lucene's low-level data types.
@@ -195,6 +196,18 @@ public abstract class DataInput implements Cloneable {
     for (int i = 0; i < len; i++) {
       floats[offset + i] = Float.intBitsToFloat(readInt());
     }
+  }
+
+  public VectorComparable readVectorComparable(int offset, int len) throws IOException {
+    float[] floats = new float[len];
+    readFloats(floats, offset, len);
+
+    return vector -> VectorUtil.dotProduct(vector, floats);
+  }
+
+
+  public interface VectorComparable {
+    float compare(float[] vector);
   }
 
   /**
