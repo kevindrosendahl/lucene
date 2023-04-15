@@ -17,6 +17,7 @@
 package org.apache.lucene.store;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -203,6 +204,10 @@ public abstract class DataInput implements Cloneable {
     readFloats(floats, offset, len);
 
     return vector -> VectorUtil.dotProduct(vector, floats);
+  }
+
+  public MemorySegment readVectorSegment() throws IOException {
+    throw new RuntimeException("unimplemented");
   }
 
 

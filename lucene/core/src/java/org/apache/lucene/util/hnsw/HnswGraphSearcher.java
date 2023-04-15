@@ -20,6 +20,9 @@ package org.apache.lucene.util.hnsw;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BitSet;
@@ -282,8 +285,78 @@ public class HnswGraphSearcher<T> {
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
-      return vectors.vectorComparable(ord).compare((float[]) query);
+      return compare((float[]) query, vectors.vectorSegment(ord));
     }
+  }
+
+  private static final ValueLayout.OfFloat LAYOUT_LE_FLOAT =
+      ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+  
+  private static float compare(float[] query, MemorySegment ordSegment) {
+    float res = 0f;
+    /*
+     * If length of vector is larger than 8, we use unrolled dot product to accelerate the
+     * calculation.
+     */
+    int i;
+    for (i = 0; i < query.length % 8; i++) {
+      res += ordSegment.get(LAYOUT_LE_FLOAT, 4* i) * query[i];
+    }
+
+    if (query.length < 8) {
+      return res;
+    }
+
+    for (; i + 31 < query.length; i += 32) {
+      res +=
+          ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 0)) * query[i + 0]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 1)) * query[i + 1]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 2)) * query[i + 2]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 3)) * query[i + 3]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 4)) * query[i + 4]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 5)) * query[i + 5]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 6)) * query[i + 6]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 7)) * query[i + 7];
+      res +=
+          ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 8)) * query[i + 8]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 9)) * query[i + 9]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 10))  * query[i + 10]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 11))  * query[i + 11]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 12))  * query[i + 12]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 13))  * query[i + 13]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 14))  * query[i + 14]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 15))  * query[i + 15];
+      res +=
+          ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 16)) * query[i + 16]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 17)) * query[i + 17]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 18)) * query[i + 18]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 19)) * query[i + 19]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 20)) * query[i + 20]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 21)) * query[i + 21]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 22)) * query[i + 22]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 23)) * query[i + 23];
+      res +=
+          ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 24)) * query[i + 24]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 25)) * query[i + 25]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 26)) * query[i + 26]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 27)) * query[i + 27]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 28)) * query[i + 28]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 29)) * query[i + 29]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 30)) * query[i + 30]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 31)) * query[i + 31];
+    }
+    for (; i + 7 < query.length; i += 8) {
+      res +=
+          ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 0)) * query[i + 0]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 1)) * query[i + 1]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 2)) * query[i + 2]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 3)) * query[i + 3]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 4)) * query[i + 4]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 5)) * query[i + 5]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 6)) * query[i + 6]
+              + ordSegment.get(LAYOUT_LE_FLOAT, 4* (i + 7)) * query[i + 7];
+    }
+    return res;
   }
 
   private void prepareScratchState(int capacity) {

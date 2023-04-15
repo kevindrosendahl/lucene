@@ -18,6 +18,7 @@
 package org.apache.lucene.util.hnsw;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import org.apache.lucene.store.DataInput;
 
 /**
@@ -45,6 +46,10 @@ public interface RandomAccessVectorValues<T> {
     throw new RuntimeException("unimplemented");
   }
 
+
+  default MemorySegment vectorSegment(int targetOrd) throws IOException {
+    throw new RuntimeException("unimplemented");
+  }
 
   /**
    * Creates a new copy of this {@link RandomAccessVectorValues}. This is helpful when you need to

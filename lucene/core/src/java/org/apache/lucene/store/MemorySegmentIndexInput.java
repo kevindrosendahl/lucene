@@ -212,6 +212,11 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
   }
 
   @Override
+  public MemorySegment readVectorSegment() {
+    return curSegment;
+  }
+
+  @Override
   public VectorComparable readVectorComparable(int offset, int len) {
     return vector -> {
       float res = 0f;
