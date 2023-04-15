@@ -17,8 +17,8 @@
 package org.apache.lucene.store;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.MemorySession;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Path;
@@ -33,7 +33,7 @@ final class MemorySegmentIndexInputProvider implements MMapDirectory.MMapIndexIn
   public MemorySegmentIndexInputProvider() {
     var log = Logger.getLogger(getClass().getName());
     log.info(
-        "Using MemorySegmentIndexInput with Java 19; to disable start with -D"
+        "Using MemorySegmentIndexInput with Java 20; to disable start with -D"
             + MMapDirectory.ENABLE_MEMORY_SEGMENTS_SYSPROP
             + "=false");
   }
@@ -47,21 +47,21 @@ final class MemorySegmentIndexInputProvider implements MMapDirectory.MMapIndexIn
     path = Unwrappable.unwrapAll(path);
 
     boolean success = false;
-    final MemorySession session = MemorySession.openShared();
+    final Arena arena = Arena.openShared();
     try (var fc = FileChannel.open(path, StandardOpenOption.READ)) {
       final long fileSize = fc.size();
       final IndexInput in =
           MemorySegmentIndexInput.newInstance(
               resourceDescription,
-              session,
-              map(session, resourceDescription, fc, chunkSizePower, preload, fileSize),
+              arena,
+              map(arena, resourceDescription, fc, chunkSizePower, preload, fileSize),
               fileSize,
               chunkSizePower);
       success = true;
       return in;
     } finally {
       if (success == false) {
-        session.close();
+        arena.close();
       }
     }
   }
@@ -82,7 +82,7 @@ final class MemorySegmentIndexInputProvider implements MMapDirectory.MMapIndexIn
   }
 
   private final MemorySegment[] map(
-      MemorySession session,
+      Arena arena,
       String resourceDescription,
       FileChannel fc,
       int chunkSizePower,
@@ -105,7 +105,7 @@ final class MemorySegmentIndexInputProvider implements MMapDirectory.MMapIndexIn
           (length > (startOffset + chunkSize)) ? chunkSize : (length - startOffset);
       final MemorySegment segment;
       try {
-        segment = fc.map(MapMode.READ_ONLY, startOffset, segSize, session);
+        segment = fc.map(MapMode.READ_ONLY, startOffset, segSize, arena.scope());
       } catch (IOException ioe) {
         throw convertMapFailedIOException(ioe, resourceDescription, segSize);
       }

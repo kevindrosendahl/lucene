@@ -18,14 +18,13 @@ package org.apache.lucene.store;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.MemorySession;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.VectorUtil;
 
 /**
  * Base IndexInput implementation that uses an array of MemorySegments to represent a file.
@@ -37,18 +36,18 @@ import org.apache.lucene.util.VectorUtil;
 abstract class MemorySegmentIndexInput extends IndexInput implements RandomAccessInput {
   static final ValueLayout.OfByte LAYOUT_BYTE = ValueLayout.JAVA_BYTE;
   static final ValueLayout.OfShort LAYOUT_LE_SHORT =
-      ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+      ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
   static final ValueLayout.OfInt LAYOUT_LE_INT =
-      ValueLayout.JAVA_INT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+      ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
   static final ValueLayout.OfLong LAYOUT_LE_LONG =
-      ValueLayout.JAVA_LONG.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+      ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
   static final ValueLayout.OfFloat LAYOUT_LE_FLOAT =
-      ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+      ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
   final long length;
   final long chunkSizeMask;
   final int chunkSizePower;
-  final MemorySession session;
+  final Arena arena;
   final MemorySegment[] segments;
 
   int curSegmentIndex = -1;
@@ -58,28 +57,26 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
   public static MemorySegmentIndexInput newInstance(
       String resourceDescription,
-      MemorySession session,
+      Arena arena,
       MemorySegment[] segments,
       long length,
       int chunkSizePower) {
-    assert Arrays.stream(segments).map(MemorySegment::session).allMatch(session::equals);
+    assert Arrays.stream(segments).map(MemorySegment::scope).allMatch(arena.scope()::equals);
     if (segments.length == 1) {
-      return new SingleSegmentImpl(
-          resourceDescription, session, segments[0], length, chunkSizePower);
+      return new SingleSegmentImpl(resourceDescription, arena, segments[0], length, chunkSizePower);
     } else {
-      return new MultiSegmentImpl(
-          resourceDescription, session, segments, 0, length, chunkSizePower);
+      return new MultiSegmentImpl(resourceDescription, arena, segments, 0, length, chunkSizePower);
     }
   }
 
   private MemorySegmentIndexInput(
       String resourceDescription,
-      MemorySession session,
+      Arena arena,
       MemorySegment[] segments,
       long length,
       int chunkSizePower) {
     super(resourceDescription);
-    this.session = session;
+    this.arena = arena;
     this.segments = segments;
     this.length = length;
     this.chunkSizePower = chunkSizePower;
@@ -209,81 +206,6 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     } catch (NullPointerException | IllegalStateException e) {
       throw alreadyClosed(e);
     }
-  }
-
-  @Override
-  public MemorySegment readVectorSegment() {
-    return curSegment;
-  }
-
-  @Override
-  public VectorComparable readVectorComparable(int offset, int len) {
-    return vector -> {
-      float res = 0f;
-      /*
-       * If length of vector is larger than 8, we use unrolled dot product to accelerate the
-       * calculation.
-       */
-      int i;
-      for (i = 0; i < vector.length % 8; i++) {
-        res += curSegment.get(LAYOUT_LE_FLOAT, 4* i) * vector[i];
-      }
-
-      if (vector.length < 8) {
-        return res;
-      }
-
-      for (; i + 31 < vector.length; i += 32) {
-        res +=
-            curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 0)) * vector[i + 0]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 1)) * vector[i + 1]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 2)) * vector[i + 2]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 3)) * vector[i + 3]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 4)) * vector[i + 4]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 5)) * vector[i + 5]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 6)) * vector[i + 6]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 7)) * vector[i + 7];
-        res +=
-            curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 8)) * vector[i + 8]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 9)) * vector[i + 9]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 10))  * vector[i + 10]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 11))  * vector[i + 11]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 12))  * vector[i + 12]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 13))  * vector[i + 13]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 14))  * vector[i + 14]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 15))  * vector[i + 15];
-        res +=
-            curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 16)) * vector[i + 16]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 17)) * vector[i + 17]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 18)) * vector[i + 18]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 19)) * vector[i + 19]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 20)) * vector[i + 20]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 21)) * vector[i + 21]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 22)) * vector[i + 22]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 23)) * vector[i + 23];
-        res +=
-            curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 24)) * vector[i + 24]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 25)) * vector[i + 25]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 26)) * vector[i + 26]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 27)) * vector[i + 27]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 28)) * vector[i + 28]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 29)) * vector[i + 29]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 30)) * vector[i + 30]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 31)) * vector[i + 31];
-      }
-      for (; i + 7 < vector.length; i += 8) {
-        res +=
-            curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 0)) * vector[i + 0]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 1)) * vector[i + 1]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 2)) * vector[i + 2]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 3)) * vector[i + 3]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 4)) * vector[i + 4]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 5)) * vector[i + 5]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 6)) * vector[i + 6]
-                + curSegment.get(LAYOUT_LE_FLOAT, 4* (i + 7)) * vector[i + 7];
-      }
-      return res;
-    };
   }
 
   @Override
@@ -492,14 +414,14 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     if (slices.length == 1) {
       return new SingleSegmentImpl(
           newResourceDescription,
-          null, // clones don't have a MemorySession, as they can't close)
+          null, // clones don't have an Arena, as they can't close)
           slices[0].asSlice(offset, length),
           length,
           chunkSizePower);
     } else {
       return new MultiSegmentImpl(
           newResourceDescription,
-          null, // clones don't have a MemorySession, as they can't close)
+          null, // clones don't have an Arena, as they can't close)
           slices,
           offset,
           length,
@@ -517,12 +439,12 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     curSegment = null;
     Arrays.fill(segments, null);
 
-    // the master IndexInput has a MemorySession and is able
+    // the master IndexInput has an Arena and is able
     // to release all resources (unmap segments) - a
     // side effect is that other threads still using clones
     // will throw IllegalStateException
-    if (session != null) {
-      session.close();
+    if (arena != null) {
+      arena.close();
     }
   }
 
@@ -531,11 +453,11 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
     SingleSegmentImpl(
         String resourceDescription,
-        MemorySession session,
+        Arena arena,
         MemorySegment segment,
         long length,
         int chunkSizePower) {
-      super(resourceDescription, session, new MemorySegment[] {segment}, length, chunkSizePower);
+      super(resourceDescription, arena, new MemorySegment[] {segment}, length, chunkSizePower);
       this.curSegmentIndex = 0;
     }
 
@@ -606,12 +528,12 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
     MultiSegmentImpl(
         String resourceDescription,
-        MemorySession session,
+        Arena arena,
         MemorySegment[] segments,
         long offset,
         long length,
         int chunkSizePower) {
-      super(resourceDescription, session, segments, length, chunkSizePower);
+      super(resourceDescription, arena, segments, length, chunkSizePower);
       this.offset = offset;
       try {
         seek(0L);

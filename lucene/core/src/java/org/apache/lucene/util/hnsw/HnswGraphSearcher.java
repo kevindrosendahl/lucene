@@ -20,15 +20,14 @@ package org.apache.lucene.util.hnsw;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.MemorySession;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BitSet;
@@ -103,8 +102,8 @@ public class HnswGraphSearcher<T> {
               + " differs from field dimension: "
               + vectors.dimension());
     }
-    try (MemorySession session = MemorySession.openConfined()) {
-      MemorySegment queryMemory = session.allocateArray(LAYOUT_LE_FLOAT, query);
+    try (Arena arena = Arena.openConfined()) {
+      MemorySegment queryMemory = arena.allocateArray(LAYOUT_LE_FLOAT, query);
 
       HnswGraphSearcher<float[]> graphSearcher =
           new HnswGraphSearcher<>(
@@ -207,13 +206,14 @@ public class HnswGraphSearcher<T> {
   public NeighborQueue searchLevel(
       // Note: this is only public because Lucene91HnswGraphBuilder needs it
       T query,
+      MemorySegment queryMemory,
       int topK,
       int level,
       final int[] eps,
       RandomAccessVectorValues<T> vectors,
       HnswGraph graph)
       throws IOException {
-    return searchLevel(query, null,  topK, level, eps, vectors, graph, null, Integer.MAX_VALUE);
+    return searchLevel(query, queryMemory,  topK, level, eps, vectors, graph, null, Integer.MAX_VALUE);
   }
 
   private NeighborQueue searchLevel(
@@ -311,10 +311,10 @@ public class HnswGraphSearcher<T> {
   private static final MethodHandle DOT_PRODUCT;
 
   static {
-    try (MemorySession session = MemorySession.openConfined()) {
+    try (Arena session = Arena.openConfined()) {
       SymbolLookup lookup =
-          SymbolLookup.libraryLookup("vector_similarity", session);
-      MemorySegment func = lookup.lookup("dot_product_avx512").get();
+          SymbolLookup.libraryLookup("vector_similarity", session.scope());
+      MemorySegment func = lookup.find("dot_product_avx512").get();
       FunctionDescriptor descriptor =
           FunctionDescriptor.of(
               ValueLayout.JAVA_FLOAT,
