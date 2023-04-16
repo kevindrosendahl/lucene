@@ -21,12 +21,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -48,6 +44,8 @@ public class HnswGraphSearcher<T> {
       ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
 
   public static boolean USE_SEGMENTS = false;
+
+  public static boolean USE_DENSE_FIXED_BIT_SET = false;
 
   private final VectorSimilarityFunction similarityFunction;
   private final VectorEncoding vectorEncoding;
@@ -117,7 +115,7 @@ public class HnswGraphSearcher<T> {
               vectorEncoding,
               similarityFunction,
               new NeighborQueue(topK, true),
-              new SparseFixedBitSet(vectors.size()));
+              USE_DENSE_FIXED_BIT_SET ? new FixedBitSet(vectors.size()) : new SparseFixedBitSet(vectors.size()));
       NeighborQueue results;
       int[] eps = new int[] {graph.entryNode()};
       int numVisited = 0;
@@ -174,7 +172,7 @@ public class HnswGraphSearcher<T> {
             vectorEncoding,
             similarityFunction,
             new NeighborQueue(topK, true),
-            new SparseFixedBitSet(vectors.size()));
+            USE_DENSE_FIXED_BIT_SET ? new FixedBitSet(vectors.size()) : new SparseFixedBitSet(vectors.size()));
     NeighborQueue results;
     int[] eps = new int[] {graph.entryNode()};
     int numVisited = 0;
