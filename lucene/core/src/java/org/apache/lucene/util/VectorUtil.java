@@ -139,6 +139,10 @@ public final class VectorUtil {
     for (; i < upperBound; i += 2 * SPECIES.length()) {
       // for the first half of the iteration, we want to get the floats from the vectors
       // directly at this offset
+      System.out.println("upperBound = " + upperBound);
+      System.out.println("i = " + i);
+      System.out.println("dimensions = " + dimensions);
+      System.out.println("(long) SPECIES.length() * i = " + (long) SPECIES.length() * i);
       FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
       FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
       acc1 = acc1.add(va.mul(vb));
