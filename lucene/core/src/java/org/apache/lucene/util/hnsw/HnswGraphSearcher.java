@@ -136,6 +136,7 @@ public class HnswGraphSearcher<T> {
           graphSearcher.searchLevel(query, queryMemory, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
       results.setVisitedCount(results.visitedCount() + numVisited);
 
+      System.out.println("graphSearcher = " + graphSearcher.numCompares);
       return results;
     }
   }

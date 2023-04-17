@@ -131,22 +131,19 @@ public final class VectorUtil {
 
 
     int upperBound = SPECIES.loopBound(dimensions - SPECIES.length());
-    // i here is the byte offset into the memory segment
+    // i is the number of dimensions that have been consumed
+    // each iteration we consume SPECIES.length dimensions twice
     for (; i < upperBound; i += 2 * SPECIES.length()) {
       // for the first half of the iteration, we want to get the floats from the vectors
       // directly at this offset
       FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
-//      System.out.println("va = " + va);
       FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
-//      System.out.println("vb = " + vb);
       acc1 = acc1.add(va.mul(vb));
 
       // For the second half of the iteration, we want to get the floats at SPECIES.length() * num_bytes_per_float past
       // the offset (as that's how many bytes will have been consumed in the first half).
       FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-//      System.out.println("vc = " + vc);
       FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-//      System.out.println("vd = " + vd);
       acc2 = acc2.add(vc.mul(vd));
     }
     res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
