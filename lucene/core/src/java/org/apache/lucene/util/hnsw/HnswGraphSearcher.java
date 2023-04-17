@@ -112,6 +112,9 @@ public class HnswGraphSearcher<T> {
     }
     try (Arena arena = Arena.openConfined()) {
       MemorySegment queryMemory = USE_SEGMENTS ?  arena.allocateArray(LAYOUT_LE_FLOAT, query) : null;
+      if (USE_SEGMENTS) {
+        System.out.println("queryMemory.byteSize() = " + queryMemory.byteSize());
+      }
 
       HnswGraphSearcher<float[]> graphSearcher =
           new HnswGraphSearcher<>(
@@ -136,7 +139,7 @@ public class HnswGraphSearcher<T> {
           graphSearcher.searchLevel(query, queryMemory, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
       results.setVisitedCount(results.visitedCount() + numVisited);
 
-      System.out.println("graphSearcher = " + graphSearcher.numCompares);
+//      System.out.println("graphSearcher = " + graphSearcher.numCompares);
       return results;
     }
   }
