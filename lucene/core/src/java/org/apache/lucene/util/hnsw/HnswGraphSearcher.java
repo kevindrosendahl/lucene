@@ -18,6 +18,7 @@
 package org.apache.lucene.util.hnsw;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.util.VectorUtil.dotProduct;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -134,6 +135,9 @@ public class HnswGraphSearcher<T> {
       results =
           graphSearcher.searchLevel(query, queryMemory, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
       results.setVisitedCount(results.visitedCount() + numVisited);
+
+      System.out.println("numVisited = " + numVisited);
+      System.out.println("graphSearcher.numCompares = " + graphSearcher.numCompares);
       return results;
     }
   }
@@ -305,10 +309,19 @@ public class HnswGraphSearcher<T> {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
       if (queryMemory == null) {
-        return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
+        float compared = similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
+        if (numCompares < 5) {
+          System.out.println("compared = " + compared);
+        }
+
+        return compared;
       }
 
-      return VectorUtil.dotProduct(queryMemory, vectors.vectorSegment(ord), vectors.dimension());
+      float compared = (1 + VectorUtil.dotProduct(queryMemory, vectors.vectorSegment(ord), vectors.dimension()) / 2);
+      if (numCompares < 5) {
+        System.out.println("compared = " + compared);
+      }
+      return compared;
     }
   }
 

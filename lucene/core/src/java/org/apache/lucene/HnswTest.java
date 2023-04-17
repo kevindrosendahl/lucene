@@ -6,11 +6,27 @@ import java.lang.foreign.ValueLayout;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorSpecies;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 
 @SuppressWarnings("unused")
 public class HnswTest {
@@ -26,16 +42,74 @@ public class HnswTest {
 
 
   public static void main(String[] args) throws Exception {
-    var vec1 = vec1();
+    runQuery();
+//    distanceParity();
+  }
+
+  private static void runQuery() throws Exception {
+    clearDirectory(PATH);
+    try (var directory = new MMapDirectory(PATH)) {
+      var writer = new IndexWriter(directory, new IndexWriterConfig());
+
+      var vectors = generateRandomVectors(10000, 128);
+      for (var vector : vectors) {
+        var doc = new Document();
+        doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.DOT_PRODUCT));
+        writer.addDocument(doc);
+      }
+
+      writer.forceMerge(1);
+      writer.commit();
+
+      try (IndexReader reader = DirectoryReader.open(directory)) {
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        VectorUtil.DOT_PRODUCT_IMPL = VectorUtil.DotProductImpl.JAVA_SIMD;
+        HnswGraphSearcher.USE_SEGMENTS = false;
+        HnswGraphSearcher.USE_DENSE_FIXED_BIT_SET = false;
+
+        var queryVector = generateRandomVectors(1, 128).get(0);
+        var query = new KnnFloatVectorQuery("vector", queryVector, 100);
+
+        System.out.println("--- no segments ---");
+        Instant start1 = Instant.now();
+        TopDocs hits1 = searcher.search(query, 100);
+        Instant end1 = Instant.now();
+
+        System.out.println("hits.totalHits = " + hits1.totalHits);
+
+        Duration total1 = Duration.between(start1, end1);
+        System.out.println("total = " + total1);
+
+        HnswGraphSearcher.USE_SEGMENTS = true;
+        System.out.println();
+        System.out.println("--- with segments ---");
+        Instant start2 = Instant.now();
+        TopDocs hits2 = searcher.search(query, 100);
+        Instant end2 = Instant.now();
+
+        System.out.println("hits.totalHits = " + hits2.totalHits);
+
+        Duration total2 = Duration.between(start2, end2);
+        System.out.println("total = " + total2);
+      }
+    }
+  }
+
+  private static void distanceParity() {
+    System.out.println("FloatVector.SPECIES_PREFERRED.length() = " + FloatVector.SPECIES_PREFERRED.length());
+    
+    var vecs = generateRandomVectors(2, DIMENSIONS);
+    var vec1 = vecs.get(0);
     System.out.println("vec1 = " + Arrays.toString(vec1));
-    var vec2 = vec2();
+    var vec2 = vecs.get(1);
     System.out.println("vec2 = " + Arrays.toString(vec2));
 
     var scalar = VectorUtil.dotProductScalar(vec1, vec2);
-    System.out.println("scalar = " + scalar);
+    System.out.println("scalar     = " + scalar);
 
     var simd = VectorUtil.dotProductSimd(vec1, vec2);
-    System.out.println("simd = " + simd);
+    System.out.println("simd       = " + simd);
 
     try (Arena arena = Arena.openConfined()) {
       var vec1Segment = arena.allocateArray(ValueLayout.JAVA_FLOAT, vec1);

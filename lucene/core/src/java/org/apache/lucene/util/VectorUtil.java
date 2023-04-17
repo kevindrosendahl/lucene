@@ -122,24 +122,37 @@ public final class VectorUtil {
     return res;
   }
 
-  public static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int length) {
+  public static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int dimensions) {
     int i = 0;
     float res = 0;
 
     FloatVector acc1 = FloatVector.zero(SPECIES);
     FloatVector acc2 = FloatVector.zero(SPECIES);
-    int upperBound = SPECIES.loopBound(length - SPECIES.length());
+
+
+    int upperBound = SPECIES.loopBound(dimensions - SPECIES.length());
+    // i here is the byte offset into the memory segment
     for (; i < upperBound; i += 2 * SPECIES.length()) {
-      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, 4L * i, ByteOrder.LITTLE_ENDIAN);
-      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      // for the first half of the iteration, we want to get the floats from the vectors
+      // directly at this offset
+      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+//      System.out.println("va = " + va);
+      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+//      System.out.println("vb = " + vb);
       acc1 = acc1.add(va.mul(vb));
-      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+
+      // For the second half of the iteration, we want to get the floats at SPECIES.length() * num_bytes_per_float past
+      // the offset (as that's how many bytes will have been consumed in the first half).
+      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+//      System.out.println("vc = " + vc);
+      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+//      System.out.println("vd = " + vd);
       acc2 = acc2.add(vc.mul(vd));
     }
     res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
 
-    for (; i < length; i++) {
+    // finally, we want to consume any remaining floats that are past the last 4-aligned chunk
+    for (; i < dimensions; i++) {
       res += b.getAtIndex(ValueLayout.JAVA_FLOAT, i) * a.getAtIndex(ValueLayout.JAVA_FLOAT, i);
     }
     return res;
