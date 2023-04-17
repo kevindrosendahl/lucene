@@ -122,6 +122,30 @@ public final class VectorUtil {
     return res;
   }
 
+  public static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int length) {
+    int i = 0;
+    float res = 0;
+
+    FloatVector acc1 = FloatVector.zero(SPECIES);
+    FloatVector acc2 = FloatVector.zero(SPECIES);
+    int upperBound = SPECIES.loopBound(length - SPECIES.length());
+    for (; i < upperBound; i += 2 * SPECIES.length()) {
+      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      acc1 = acc1.add(va.mul(vb));
+      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      acc2 = acc2.add(vc.mul(vd));
+    }
+    res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
+
+    for (; i < length; i++) {
+      res += b.getAtIndex(ValueLayout.JAVA_FLOAT, i) * a.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+    }
+    return res;
+  }
+
+
   public static float dotProductScalar(float[] a, float[] b) {
     if (a.length != b.length) {
       throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
@@ -186,29 +210,6 @@ public final class VectorUtil {
               + b[i + 5] * a[i + 5]
               + b[i + 6] * a[i + 6]
               + b[i + 7] * a[i + 7];
-    }
-    return res;
-  }
-
-  static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int length) {
-    int i = 0;
-    float res = 0;
-
-    FloatVector acc1 = FloatVector.zero(SPECIES);
-    FloatVector acc2 = FloatVector.zero(SPECIES);
-    int upperBound = SPECIES.loopBound(length - SPECIES.length());
-    for (; i < upperBound; i += 2 * SPECIES.length()) {
-      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, i, ByteOrder.LITTLE_ENDIAN);
-      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, i, ByteOrder.LITTLE_ENDIAN);
-      acc1 = acc1.add(va.mul(vb));
-      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, i + SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, i + SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-      acc2 = acc2.add(vc.mul(vd));
-    }
-    res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
-
-    for (; i < length; i++) {
-      res += b.get(ValueLayout.JAVA_FLOAT, i) * a.get(ValueLayout.JAVA_FLOAT, i);
     }
     return res;
   }

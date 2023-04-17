@@ -1,8 +1,19 @@
+java_binary(
+    name = "HnswTest",
+    srcs = ["lucene/core/src/java/org/apache/lucene/HnswTest.java"],
+    main_class = "org.apache.lucene.HnswTest",
+    visibility = ["//visibility:public"],
+    deps = [":lucene-core"],
+)
+
 java_library(
     name = "lucene-core",
-    srcs = glob(["lucene/core/src/java/**/*.java"]),
-    resources = glob(["lucene/core/src/resources/**/*"]),
+    srcs = glob(
+        include = ["lucene/core/src/java/**/*.java"],
+        exclude = ["lucene/core/src/java/org/apache/lucene/HnswTest.java"],
+    ),
     resource_strip_prefix = "lucene/core/src/resources",
+    resources = glob(["lucene/core/src/resources/**/*"]),
     visibility = ["//visibility:public"],
     deps = [
         # Add necessary dependencies here
@@ -11,9 +22,12 @@ java_library(
 
 java_library(
     name = "lucene-core-19",
-    srcs = glob(["lucene/core/src/java/**/*.java", "lucene/core/src/java19/**/*.java"]),
-    resources = glob(["lucene/core/src/resources/**/*"]),
+    srcs = glob([
+        "lucene/core/src/java/**/*.java",
+        "lucene/core/src/java19/**/*.java",
+    ]),
     resource_strip_prefix = "lucene/core/src/resources",
+    resources = glob(["lucene/core/src/resources/**/*"]),
     visibility = ["//visibility:public"],
     deps = [
         # Add necessary dependencies here

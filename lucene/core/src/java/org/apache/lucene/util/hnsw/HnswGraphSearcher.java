@@ -47,6 +47,8 @@ public class HnswGraphSearcher<T> {
 
   public static boolean USE_DENSE_FIXED_BIT_SET = false;
 
+  public int numCompares = 0;
+
   private final VectorSimilarityFunction similarityFunction;
   private final VectorEncoding vectorEncoding;
 
@@ -298,6 +300,7 @@ public class HnswGraphSearcher<T> {
   }
 
   private float compare(T query, MemorySegment queryMemory, RandomAccessVectorValues<T> vectors, int ord) throws IOException {
+    this.numCompares++;
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
