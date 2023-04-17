@@ -112,9 +112,6 @@ public class HnswGraphSearcher<T> {
     }
     try (Arena arena = Arena.openConfined()) {
       MemorySegment queryMemory = USE_SEGMENTS ?  arena.allocateArray(LAYOUT_LE_FLOAT, query) : null;
-      if (USE_SEGMENTS) {
-        System.out.println("queryMemory.byteSize() = " + queryMemory.byteSize());
-      }
 
       HnswGraphSearcher<float[]> graphSearcher =
           new HnswGraphSearcher<>(
