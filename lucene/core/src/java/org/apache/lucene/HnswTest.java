@@ -42,10 +42,10 @@ public class HnswTest {
 
 
   public static void main(String[] args) throws Exception {
-    for (int i = 0; i < 10; i++) {
-      runQuery();
-    }
-//    distanceParity();
+//    for (int i = 0; i < 10; i++) {
+//      runQuery();
+//    }
+    distanceParity();
   }
 
   private static void runQuery() throws Exception {

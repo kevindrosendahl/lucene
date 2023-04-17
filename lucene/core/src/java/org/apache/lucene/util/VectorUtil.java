@@ -105,7 +105,7 @@ public final class VectorUtil {
 
     FloatVector acc1 = FloatVector.zero(SPECIES);
     FloatVector acc2 = FloatVector.zero(SPECIES);
-    int upperBound = SPECIES.loopBound(a.length - SPECIES.length());
+    int upperBound = SPECIES.loopBound(a.length);
     for (; i < upperBound; i += 2 * SPECIES.length()) {
       FloatVector va = FloatVector.fromArray(SPECIES, a, i);
       FloatVector vb = FloatVector.fromArray(SPECIES, b, i);
@@ -123,9 +123,6 @@ public final class VectorUtil {
   }
 
   public static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int dimensions) {
-    System.out.println("a.byteSize() = " + a.byteSize());
-    System.out.println("b.byteSize() = " + b.byteSize());
-
     int i = 0;
     float res = 0;
 
@@ -133,24 +130,19 @@ public final class VectorUtil {
     FloatVector acc2 = FloatVector.zero(SPECIES);
 
 
-    int upperBound = SPECIES.loopBound(dimensions - SPECIES.length());
-    // i is the number of dimensions that have been consumed
-    // each iteration we consume SPECIES.length dimensions twice
+    // upperBound (and therefore i) are in units of lanes, which is also equivalent to 4 bytes
+    int upperBound = SPECIES.loopBound(dimensions);
     for (; i < upperBound; i += 2 * SPECIES.length()) {
       // for the first half of the iteration, we want to get the floats from the vectors
       // directly at this offset
-      System.out.println("upperBound = " + upperBound);
-      System.out.println("i = " + i);
-      System.out.println("dimensions = " + dimensions);
-      System.out.println("(long) SPECIES.length() * i = " + (long) SPECIES.length() * i);
-      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
-      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector va = FloatVector.fromMemorySegment(SPECIES, a, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb = FloatVector.fromMemorySegment(SPECIES, b, 4L * i, ByteOrder.LITTLE_ENDIAN);
       acc1 = acc1.add(va.mul(vb));
 
       // For the second half of the iteration, we want to get the floats at SPECIES.length() * num_bytes_per_float past
       // the offset (as that's how many bytes will have been consumed in the first half).
-      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
-      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, (long) SPECIES.length() * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vc = FloatVector.fromMemorySegment(SPECIES, a, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vd = FloatVector.fromMemorySegment(SPECIES, b, 4L * i + 4L * SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
       acc2 = acc2.add(vc.mul(vd));
     }
     res += acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD);
