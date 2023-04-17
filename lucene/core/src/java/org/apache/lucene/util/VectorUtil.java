@@ -123,6 +123,9 @@ public final class VectorUtil {
   }
 
   public static float dotProductSimdSegment(MemorySegment a, MemorySegment b, int dimensions) {
+    System.out.println("a.byteSize() = " + a.byteSize());
+    System.out.println("b.byteSize() = " + b.byteSize());
+
     int i = 0;
     float res = 0;
 
