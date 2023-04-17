@@ -25,6 +25,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -42,7 +43,7 @@ public final class VectorUtil {
 
       SymbolLookup lookup =
           SymbolLookup.libraryLookup(
-              "vector_similarity",
+              Path.of("/var/lib/mongot-deploy/mongot/lib/libvector_similarity.so"),
               arena.scope());
       MemorySegment func = lookup.find("dot_product").get();
       FunctionDescriptor descriptor =
@@ -54,7 +55,7 @@ public final class VectorUtil {
 
       DOT_PRODUCT_NATIVE = Linker.nativeLinker().downcallHandle(func, descriptor);
     } catch (Throwable t) {
-      System.out.println("couldn't find native implementation of dot product");
+      System.out.println("couldn't find native implementation of dot product: " + t);
     }
   }
 
