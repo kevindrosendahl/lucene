@@ -136,8 +136,6 @@ public class HnswGraphSearcher<T> {
           graphSearcher.searchLevel(query, queryMemory, topK, 0, eps, vectors, graph, acceptOrds, visitedLimit);
       results.setVisitedCount(results.visitedCount() + numVisited);
 
-      System.out.println("numVisited = " + numVisited);
-      System.out.println("graphSearcher.numCompares = " + graphSearcher.numCompares);
       return results;
     }
   }
@@ -309,19 +307,10 @@ public class HnswGraphSearcher<T> {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
       if (queryMemory == null) {
-        float compared = similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
-        if (numCompares < 5) {
-          System.out.println("compared = " + compared);
-        }
-
-        return compared;
+        return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
       }
 
-      float compared = (1 + VectorUtil.dotProduct(queryMemory, vectors.vectorSegment(ord), vectors.dimension()) / 2);
-      if (numCompares < 5) {
-        System.out.println("compared = " + compared);
-      }
-      return compared;
+      return (1 + VectorUtil.dotProduct(queryMemory, vectors.vectorSegment(ord), vectors.dimension()) / 2);
     }
   }
 
