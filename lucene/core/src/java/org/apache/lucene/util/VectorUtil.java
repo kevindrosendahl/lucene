@@ -88,7 +88,7 @@ public final class VectorUtil {
       case JAVA_SIMD -> dotProductSimdSegment(a, b, length);
       case NATIVE -> {
         try {
-          yield (float) DOT_PRODUCT_NATIVE.invokeExact(a, b, length);
+          yield (float) DOT_PRODUCT_NATIVE.invokeExact(a.address(), b.address(), length);
         } catch (Throwable t) {
           throw new RuntimeException(t);
         }
