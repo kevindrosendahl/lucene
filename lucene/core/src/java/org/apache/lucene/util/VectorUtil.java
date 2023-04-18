@@ -88,7 +88,7 @@ public final class VectorUtil {
       case JAVA_SIMD -> dotProductSimdSegment(a, b, length);
       case NATIVE -> {
         try {
-          yield (float) DOT_PRODUCT_NATIVE.invokeExact(a.address(), b.address(), length);
+          yield dotProductNative(a, b, length);
         } catch (Throwable t) {
           throw new RuntimeException(t);
         }
@@ -155,6 +155,10 @@ public final class VectorUtil {
     return res;
   }
 
+
+  public static float dotProductNative(MemorySegment a, MemorySegment b, int dimensions) throws Throwable {
+    return (float) DOT_PRODUCT_NATIVE.invoke(a.address(), b.address(), dimensions);
+  }
 
   public static float dotProductScalar(float[] a, float[] b) {
     if (a.length != b.length) {

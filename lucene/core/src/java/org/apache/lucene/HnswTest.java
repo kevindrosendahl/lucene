@@ -1,7 +1,7 @@
 package org.apache.lucene;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySession;
 import java.lang.foreign.ValueLayout;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -41,7 +41,7 @@ public class HnswTest {
 
 
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) throws Throwable {
 //    for (int i = 0; i < 10; i++) {
 //      runQuery();
 //    }
@@ -98,7 +98,7 @@ public class HnswTest {
     }
   }
 
-  private static void distanceParity() {
+  private static void distanceParity() throws Throwable {
     System.out.println("FloatVector.SPECIES_PREFERRED.length() = " + FloatVector.SPECIES_PREFERRED.length());
     
     var vecs = generateRandomVectors(2, DIMENSIONS);
@@ -113,11 +113,14 @@ public class HnswTest {
     var simd = VectorUtil.dotProductSimd(vec1, vec2);
     System.out.println("simd       = " + simd);
 
-    try (Arena arena = Arena.openConfined()) {
-      var vec1Segment = arena.allocateArray(ValueLayout.JAVA_FLOAT, vec1);
-      var vec2Segment = arena.allocateArray(ValueLayout.JAVA_FLOAT, vec2);
+    try (MemorySession session = MemorySession.openConfined()) {
+      var vec1Segment = session.allocateArray(ValueLayout.JAVA_FLOAT, vec1);
+      var vec2Segment = session.allocateArray(ValueLayout.JAVA_FLOAT, vec2);
 
       var memorySimd = VectorUtil.dotProductSimdSegment(vec1Segment, vec2Segment, DIMENSIONS);
+      System.out.println("memorySimd = " + memorySimd);
+
+      var ntaive = VectorUtil.dotProductNative(vec1Segment, vec2Segment, DIMENSIONS);
       System.out.println("memorySimd = " + memorySimd);
     }
   }
