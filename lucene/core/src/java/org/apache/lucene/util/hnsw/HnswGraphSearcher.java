@@ -21,8 +21,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.apache.lucene.util.VectorUtil.dotProduct;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.MemorySession;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import org.apache.lucene.index.VectorEncoding;
@@ -110,8 +110,8 @@ public class HnswGraphSearcher<T> {
               + " differs from field dimension: "
               + vectors.dimension());
     }
-    try (Arena arena = Arena.openConfined()) {
-      MemorySegment queryMemory = USE_SEGMENTS ?  arena.allocateArray(LAYOUT_LE_FLOAT, query) : null;
+    try (MemorySession session = MemorySession.openConfined()) {
+      MemorySegment queryMemory = USE_SEGMENTS ?  session.allocateArray(LAYOUT_LE_FLOAT, query) : null;
 
       HnswGraphSearcher<float[]> graphSearcher =
           new HnswGraphSearcher<>(

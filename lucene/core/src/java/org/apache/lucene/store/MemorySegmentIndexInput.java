@@ -18,7 +18,7 @@ package org.apache.lucene.store;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySession;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
@@ -36,18 +36,19 @@ import org.apache.lucene.util.ArrayUtil;
 abstract class MemorySegmentIndexInput extends IndexInput implements RandomAccessInput {
   static final ValueLayout.OfByte LAYOUT_BYTE = ValueLayout.JAVA_BYTE;
   static final ValueLayout.OfShort LAYOUT_LE_SHORT =
-      ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+      ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
   static final ValueLayout.OfInt LAYOUT_LE_INT =
-      ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+      ValueLayout.JAVA_INT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
   static final ValueLayout.OfLong LAYOUT_LE_LONG =
-      ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+      ValueLayout.JAVA_LONG.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
   static final ValueLayout.OfFloat LAYOUT_LE_FLOAT =
-      ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+      ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN).withBitAlignment(8);
+
 
   final long length;
   final long chunkSizeMask;
   final int chunkSizePower;
-  final Arena arena;
+  final MemorySession session;
   final MemorySegment[] segments;
 
   int curSegmentIndex = -1;
@@ -57,26 +58,28 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
   public static MemorySegmentIndexInput newInstance(
       String resourceDescription,
-      Arena arena,
+      MemorySession session,
       MemorySegment[] segments,
       long length,
       int chunkSizePower) {
-    assert Arrays.stream(segments).map(MemorySegment::scope).allMatch(arena.scope()::equals);
+    assert Arrays.stream(segments).map(MemorySegment::session).allMatch(session::equals);
     if (segments.length == 1) {
-      return new SingleSegmentImpl(resourceDescription, arena, segments[0], length, chunkSizePower);
+      return new SingleSegmentImpl(
+          resourceDescription, session, segments[0], length, chunkSizePower);
     } else {
-      return new MultiSegmentImpl(resourceDescription, arena, segments, 0, length, chunkSizePower);
+      return new MultiSegmentImpl(
+          resourceDescription, session, segments, 0, length, chunkSizePower);
     }
   }
 
   private MemorySegmentIndexInput(
       String resourceDescription,
-      Arena arena,
+      MemorySession session,
       MemorySegment[] segments,
       long length,
       int chunkSizePower) {
     super(resourceDescription);
-    this.arena = arena;
+    this.session = session;
     this.segments = segments;
     this.length = length;
     this.chunkSizePower = chunkSizePower;
@@ -446,25 +449,26 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     curSegment = null;
     Arrays.fill(segments, null);
 
-    // the master IndexInput has an Arena and is able
+    // the master IndexInput has a MemorySession and is able
     // to release all resources (unmap segments) - a
     // side effect is that other threads still using clones
     // will throw IllegalStateException
-    if (arena != null) {
-      arena.close();
+    if (session != null) {
+      session.close();
     }
   }
+
 
   /** Optimization of MemorySegmentIndexInput for when there is only one segment. */
   static final class SingleSegmentImpl extends MemorySegmentIndexInput {
 
     SingleSegmentImpl(
         String resourceDescription,
-        Arena arena,
+        MemorySession session,
         MemorySegment segment,
         long length,
         int chunkSizePower) {
-      super(resourceDescription, arena, new MemorySegment[] {segment}, length, chunkSizePower);
+      super(resourceDescription, session, new MemorySegment[] {segment}, length, chunkSizePower);
       this.curSegmentIndex = 0;
     }
 
@@ -535,12 +539,12 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
     MultiSegmentImpl(
         String resourceDescription,
-        Arena arena,
+        MemorySession session,
         MemorySegment[] segments,
         long offset,
         long length,
         int chunkSizePower) {
-      super(resourceDescription, arena, segments, length, chunkSizePower);
+      super(resourceDescription, session, segments, length, chunkSizePower);
       this.offset = offset;
       try {
         seek(0L);

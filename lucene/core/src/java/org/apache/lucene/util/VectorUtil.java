@@ -17,10 +17,10 @@
 
 package org.apache.lucene.util;
 
-import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.MemorySession;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -39,13 +39,13 @@ public final class VectorUtil {
 
   static {
     try {
-      Arena arena = Arena.openShared();
+      MemorySession session = MemorySession.openShared();
 
       SymbolLookup lookup =
           SymbolLookup.libraryLookup(
               Path.of("/var/lib/mongot-deploy/mongot/lib/libvector_similarity.so"),
-              arena.scope());
-      MemorySegment func = lookup.find("dot_product").get();
+              session);
+      MemorySegment func = lookup.lookup("dot_product").get();
       FunctionDescriptor descriptor =
           FunctionDescriptor.of(
               ValueLayout.JAVA_FLOAT,
