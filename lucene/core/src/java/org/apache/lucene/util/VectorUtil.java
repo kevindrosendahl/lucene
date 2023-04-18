@@ -43,7 +43,7 @@ public final class VectorUtil {
 
       SymbolLookup lookup =
           SymbolLookup.libraryLookup(
-              Path.of("/var/lib/mongot-deploy/mongot/lib/libvector_similarity.so"),
+              "vector_similarity",
               session);
       MemorySegment func = lookup.lookup("dot_product").get();
       FunctionDescriptor descriptor =
