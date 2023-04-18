@@ -43,7 +43,7 @@ public final class VectorUtil {
 
       SymbolLookup lookup =
           SymbolLookup.libraryLookup(
-              "vector_similarity",
+              Path.of("/home/ubuntu/src/mongot/bazel-bin/src/cpp/intel/libvector_similarity.so"),
               session);
       MemorySegment func = lookup.lookup("dot_product").get();
       FunctionDescriptor descriptor =
