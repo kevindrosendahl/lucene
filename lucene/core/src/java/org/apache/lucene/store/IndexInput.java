@@ -72,14 +72,18 @@ public abstract class IndexInput extends DataInput implements Closeable {
    */
   public abstract void seek(long pos) throws IOException;
 
-  /**
-   * {@inheritDoc}
-   *
-   * <p>Behavior is functionally equivalent to seeking to <code>getFilePointer() + numBytes</code>.
-   *
-   * @see #getFilePointer()
-   * @see #seek(long)
-   */
+  public boolean canProvideSegment() {
+    return false;
+  }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Behavior is functionally equivalent to seeking to <code>getFilePointer() + numBytes</code>.
+     *
+     * @see #getFilePointer()
+     * @see #seek(long)
+     */
   @Override
   public void skipBytes(long numBytes) throws IOException {
     if (numBytes < 0) {

@@ -71,7 +71,7 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
 
   @Override
   public boolean canProvideSegment() {
-    return true;
+    return slice.canProvideSegment();
   }
 
   public abstract int ordToDoc(int ord);
