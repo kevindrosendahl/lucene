@@ -298,7 +298,10 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
     FloatVector acc3 = FloatVector.zero(PREF_FLOAT_SPECIES);
     FloatVector acc4 = FloatVector.zero(PREF_FLOAT_SPECIES);
     int upperBound = PREF_FLOAT_SPECIES.loopBound(dimensions - 3 * PREF_FLOAT_SPECIES.length());
+    System.out.println("upperBound = " + upperBound);
+    System.out.println("PREF_FLOAT_SPECIES.length() = " + PREF_FLOAT_SPECIES.length());
     for (; i < upperBound; i += 4 * PREF_FLOAT_SPECIES.length()) {
+      System.out.println("i = " + i);
       FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
           (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
       FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,

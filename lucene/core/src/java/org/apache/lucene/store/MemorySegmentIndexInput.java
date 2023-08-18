@@ -214,6 +214,7 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     System.out.println("this.curPosition = " + this.curPosition);
     System.out.println("(this.curSegment.byteSize() - this.curPosition) = " + (this.curSegment.byteSize() - this.curPosition));
     var segment = curSegment.asSlice(curPosition);
+    System.out.println("segment.byteSize() = " + segment.byteSize());
     curPosition += Float.BYTES * (long) dimensions;
     return segment;
   }
