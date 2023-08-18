@@ -32,6 +32,8 @@ public class TestVectorUtilProviders extends LuceneTestCase {
   private static final double DELTA = 1e-3;
   private static final VectorUtilProvider LUCENE_PROVIDER = new VectorUtilDefaultProvider();
   private static final VectorUtilProvider JDK_PROVIDER = VectorUtilProvider.lookup(true);
+  private static final VectorUtilPanamaProvider PANAMA_PROVIDER = new VectorUtilPanamaProvider(
+      true);
 
   private static final int[] VECTOR_SIZES = {
       1, 4, 6, 8, 13, 16, 25, 32, 64, 100, 128, 207, 256, 300, 512, 702, 1024
@@ -66,17 +68,18 @@ public class TestVectorUtilProviders extends LuceneTestCase {
     assertFloatReturningProviders(p -> p.squareDistance(a, b));
     assertFloatReturningProviders(p -> p.cosine(a, b));
 
-    var lucene = LUCENE_PROVIDER.squareDistance(a, b);
-    var vectorArray = JDK_PROVIDER.squareDistance(a, b);
-
     var aBytes = floatArrayToByteArray(a);
     var bBytes = floatArrayToByteArray(b);
     MemorySegment segmentA = MemorySegment.ofArray(aBytes);
     MemorySegment segmentB = MemorySegment.ofArray(bBytes);
-    var vectorSegment = new VectorUtilPanamaProvider(true).squareDistance(segmentA, segmentB, size);
 
-    assertEquals(lucene, vectorArray, DELTA);
-    assertEquals(lucene, vectorSegment, DELTA);
+    var luceneL2 = LUCENE_PROVIDER.squareDistance(a, b);
+    var vectorSegmentL2 = PANAMA_PROVIDER.squareDistance(segmentA, segmentB, size);
+    assertEquals(luceneL2, vectorSegmentL2, DELTA);
+
+    var luceneCosine = LUCENE_PROVIDER.cosine(a, b);
+    var vectorSegmentCosine = PANAMA_PROVIDER.cosine(segmentA, segmentB, size);
+    assertEquals(luceneCosine, vectorSegmentCosine, DELTA);
   }
 
   private static byte[] floatArrayToByteArray(float[] floatArray) {

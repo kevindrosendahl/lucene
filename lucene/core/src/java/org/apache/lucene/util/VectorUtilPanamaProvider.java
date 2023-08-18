@@ -289,6 +289,101 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
     return res;
   }
 
+  public float cosine(MemorySegment a, MemorySegment b, int dimensions) {
+    int i = 0;
+    float sum = 0;
+    float norm1 = 0;
+    float norm2 = 0;
+    // if the array size is large (> 2x platform vector size), its worth the overhead to vectorize
+    if (dimensions > 2 * PREF_FLOAT_SPECIES.length()) {
+      // vector loop is unrolled 4x (4 accumulators in parallel)
+      FloatVector sum1 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector sum2 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector sum3 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector sum4 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm1_1 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm1_2 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm1_3 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm1_4 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm2_1 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm2_2 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm2_3 = FloatVector.zero(PREF_FLOAT_SPECIES);
+      FloatVector norm2_4 = FloatVector.zero(PREF_FLOAT_SPECIES);
+
+      int upperBound = PREF_FLOAT_SPECIES.loopBound(dimensions - 3 * PREF_FLOAT_SPECIES.length());
+      for (; i < upperBound; i += 4 * PREF_FLOAT_SPECIES.length()) {
+        FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+            4L * i, ByteOrder.LITTLE_ENDIAN);
+        FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+            4L * i, ByteOrder.LITTLE_ENDIAN);
+        sum1 = sum1.add(va.mul(vb));
+        norm1_1 = norm1_1.add(va.mul(va));
+        norm2_1 = norm2_1.add(vb.mul(vb));
+
+        FloatVector vc = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+            4L * i + 4L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        FloatVector vd = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+            4L * i + 4L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        sum2 = sum2.add(vc.mul(vd));
+        norm1_2 = norm1_2.add(vc.mul(vc));
+        norm2_2 = norm2_2.add(vd.mul(vd));
+
+        FloatVector ve = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+            4L * i + 8L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        FloatVector vf = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+            4L * i + 8L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        sum3 = sum3.add(ve.mul(vf));
+        norm1_3 = norm1_3.add(ve.mul(ve));
+        norm2_3 = norm2_3.add(vf.mul(vf));
+
+        FloatVector vg = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+            4L * i + 12L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        FloatVector vh = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+            4L * i + 12L * PREF_FLOAT_SPECIES.length(),
+            ByteOrder.LITTLE_ENDIAN);
+        sum4 = sum4.add(vg.mul(vh));
+        norm1_4 = norm1_4.add(vg.mul(vg));
+        norm2_4 = norm2_4.add(vh.mul(vh));
+      }
+      // vector tail: less scalar computations for unaligned sizes, esp with big vector sizes
+      upperBound = PREF_FLOAT_SPECIES.loopBound(dimensions);
+      for (; i < upperBound; i += PREF_FLOAT_SPECIES.length()) {
+        FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+            4L * i, ByteOrder.LITTLE_ENDIAN);
+        FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+            4L * i, ByteOrder.LITTLE_ENDIAN);
+        sum1 = sum1.add(va.mul(vb));
+        norm1_1 = norm1_1.add(va.mul(va));
+        norm2_1 = norm2_1.add(vb.mul(vb));
+      }
+
+      // reduce
+      FloatVector sumres1 = sum1.add(sum2);
+      FloatVector sumres2 = sum3.add(sum4);
+      FloatVector norm1res1 = norm1_1.add(norm1_2);
+      FloatVector norm1res2 = norm1_3.add(norm1_4);
+      FloatVector norm2res1 = norm2_1.add(norm2_2);
+      FloatVector norm2res2 = norm2_3.add(norm2_4);
+      sum += sumres1.add(sumres2).reduceLanes(VectorOperators.ADD);
+      norm1 += norm1res1.add(norm1res2).reduceLanes(VectorOperators.ADD);
+      norm2 += norm2res1.add(norm2res2).reduceLanes(VectorOperators.ADD);
+    }
+
+    for (; i < dimensions; i++) {
+      float elem1 = a.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, i);
+      float elem2 = b.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, i);
+      sum += elem1 * elem2;
+      norm1 += elem1 * elem1;
+      norm2 += elem2 * elem2;
+    }
+    return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
+  }
+
   public float squareDistance(MemorySegment a, MemorySegment b, int dimensions) {
     int i = 0;
     float res = 0;

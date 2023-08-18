@@ -18,6 +18,7 @@
 package org.apache.lucene.util.hnsw;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.util.VectorUtil.cosine;
 import static org.apache.lucene.util.VectorUtil.squareDistance;
 
 import java.io.IOException;
@@ -352,9 +353,15 @@ public class HnswGraphSearcher<T> {
       if (queryMemory == null || !vectors.canProvideSegment()) {
         return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
       } else {
-        return 1 / (1f + squareDistance(queryMemory,
-            vectors.vectorSegment(ord, vectors.dimension()),
-            vectors.dimension()));
+        if (similarityFunction.equals(VectorSimilarityFunction.COSINE)) {
+          return (1 + cosine(queryMemory,
+              vectors.vectorSegment(ord, vectors.dimension()),
+              vectors.dimension())) / 2;
+        } else {
+          return 1 / (1f + squareDistance(queryMemory,
+              vectors.vectorSegment(ord, vectors.dimension()),
+              vectors.dimension()));
+        }
       }
     }
   }

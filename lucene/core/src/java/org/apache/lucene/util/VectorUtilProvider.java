@@ -39,6 +39,10 @@ interface VectorUtilProvider {
   /** Returns the sum of squared differences of the two vectors. */
   float squareDistance(float[] a, float[] b);
 
+  default float cosine(MemorySegment a, MemorySegment b, int dimensions) {
+    throw new UnsupportedOperationException();
+  }
+
   default float squareDistance(MemorySegment a, MemorySegment b, int dimensions) {
     throw new UnsupportedOperationException();
   }

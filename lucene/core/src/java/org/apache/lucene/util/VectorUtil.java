@@ -66,6 +66,10 @@ public final class VectorUtil {
     return PROVIDER.cosine(a, b);
   }
 
+  public static float cosine(MemorySegment a, MemorySegment b, int dimensions) {
+    return PROVIDER.cosine(a, b, dimensions);
+  }
+
   /**
    * Returns the sum of squared differences of the two vectors.
    *
