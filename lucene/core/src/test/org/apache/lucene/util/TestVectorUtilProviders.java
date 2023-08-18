@@ -17,6 +17,10 @@
 package org.apache.lucene.util;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import java.lang.foreign.MemorySegment;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
@@ -30,7 +34,7 @@ public class TestVectorUtilProviders extends LuceneTestCase {
   private static final VectorUtilProvider JDK_PROVIDER = VectorUtilProvider.lookup(true);
 
   private static final int[] VECTOR_SIZES = {
-    1, 4, 6, 8, 13, 16, 25, 32, 64, 100, 128, 207, 256, 300, 512, 702, 1024
+      1, 4, 6, 8, 13, 16, 25, 32, 64, 100, 128, 207, 256, 300, 512, 702, 1024
   };
 
   private final int size;
@@ -41,7 +45,7 @@ public class TestVectorUtilProviders extends LuceneTestCase {
 
   @ParametersFactory
   public static Iterable<Object[]> parametersFactory() {
-    return () -> IntStream.of(VECTOR_SIZES).boxed().map(i -> new Object[] {i}).iterator();
+    return () -> IntStream.of(VECTOR_SIZES).boxed().map(i -> new Object[]{i}).iterator();
   }
 
   @BeforeClass
@@ -61,6 +65,26 @@ public class TestVectorUtilProviders extends LuceneTestCase {
     assertFloatReturningProviders(p -> p.dotProduct(a, b));
     assertFloatReturningProviders(p -> p.squareDistance(a, b));
     assertFloatReturningProviders(p -> p.cosine(a, b));
+
+    var lucene = LUCENE_PROVIDER.squareDistance(a, b);
+    var vectorArray = JDK_PROVIDER.squareDistance(a, b);
+
+    var aBytes = floatArrayToByteArray(a);
+    var bBytes = floatArrayToByteArray(b);
+    MemorySegment segmentA = MemorySegment.ofArray(aBytes);
+    MemorySegment segmentB = MemorySegment.ofArray(bBytes);
+    var vectorSegment = new VectorUtilPanamaProvider(true).squareDistance(segmentA, segmentB, size);
+
+    assertEquals(lucene, vectorArray, DELTA);
+    assertEquals(lucene, vectorSegment, DELTA);
+  }
+
+  private static byte[] floatArrayToByteArray(float[] floatArray) {
+    ByteBuffer byteBuffer = ByteBuffer.allocate(4 * floatArray.length)
+        .order(ByteOrder.LITTLE_ENDIAN);
+    FloatBuffer floatBuffer = byteBuffer.asFloatBuffer();
+    floatBuffer.put(floatArray);
+    return byteBuffer.array();
   }
 
   public void testBinaryVectors() {

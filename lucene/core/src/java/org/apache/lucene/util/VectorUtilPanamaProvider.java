@@ -349,7 +349,8 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
     res += res1.add(res2).reduceLanes(VectorOperators.ADD);
 
     for (; i < dimensions; i++) {
-      float diff = a.getAtIndex(ValueLayout.JAVA_FLOAT, i) - b.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+      float diff = a.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, i) - b.getAtIndex(
+          ValueLayout.JAVA_FLOAT_UNALIGNED, i);
       res += diff * diff;
     }
     return res;
