@@ -352,7 +352,8 @@ public class HnswGraphSearcher<T> {
       if (queryMemory == null || !vectors.canProvideSegment()) {
         return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
       } else {
-        return 1 / (1f + squareDistance(queryMemory, vectors.vectorSegment(ord),
+        return 1 / (1f + squareDistance(queryMemory,
+            vectors.vectorSegment(ord, vectors.dimension()),
             vectors.dimension()));
       }
     }

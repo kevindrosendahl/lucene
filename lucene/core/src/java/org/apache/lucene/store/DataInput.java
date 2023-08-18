@@ -198,7 +198,7 @@ public abstract class DataInput implements Cloneable {
     }
   }
 
-  public MemorySegment readVectorSegment() throws IOException {
+  public MemorySegment readVectorSegment(int dimensions) throws IOException {
     throw new UnsupportedOperationException();
   }
 

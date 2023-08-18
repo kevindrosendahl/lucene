@@ -41,7 +41,7 @@ public interface RandomAccessVectorValues<T> {
    */
   T vectorValue(int targetOrd) throws IOException;
 
-  default MemorySegment vectorSegment(int targetOrd) throws IOException {
+  default MemorySegment vectorSegment(int targetOrd, int dimensions) throws IOException {
     throw new UnsupportedOperationException();
   }
 

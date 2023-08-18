@@ -209,8 +209,9 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
   }
 
   @Override
-  public MemorySegment readVectorSegment() {
+  public MemorySegment readVectorSegment(int dimensions) {
     var segment = curSegment.asSlice(curPosition);
+    curPosition += Float.BYTES * (long) dimensions;
     return segment;
   }
 

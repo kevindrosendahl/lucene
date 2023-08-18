@@ -64,9 +64,9 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
   }
 
   @Override
-  public MemorySegment vectorSegment(int targetOrd) throws IOException {
+  public MemorySegment vectorSegment(int targetOrd, int dimensions) throws IOException {
     slice.seek((long) targetOrd * byteSize);
-    return slice.readVectorSegment();
+    return slice.readVectorSegment(dimensions);
   }
 
   @Override
