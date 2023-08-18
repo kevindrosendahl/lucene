@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -277,39 +280,44 @@ public final class HnswGraphBuilder<T> {
    * Inserts a doc with vector value to the graph
    */
   public void addGraphNode(int node, T value) throws IOException {
-    try (Arena arena = Arena.openConfined()) {
-      MemorySegment queryMemory = arena.allocateArray(ValueLayout.JAVA_FLOAT, (float[]) value);
-      NeighborQueue candidates;
-      final int nodeLevel = getRandomGraphLevel(ml, random);
-      int curMaxLevel = hnsw.numLevels() - 1;
+    var floats = (float[]) value;
+    ByteBuffer byteBuffer = ByteBuffer.allocate(4 * floats.length)
+        .order(ByteOrder.LITTLE_ENDIAN);
+    FloatBuffer floatBuffer = byteBuffer.asFloatBuffer();
+    floatBuffer.put(floats);
+    var bytes = byteBuffer.array();
+    MemorySegment queryMemory = MemorySegment.ofArray(bytes);
 
-      // If entrynode is -1, then this should finish without adding neighbors
-      if (hnsw.entryNode() == -1) {
-        for (int level = nodeLevel; level >= 0; level--) {
-          hnsw.addNode(level, node);
-        }
-        return;
-      }
-      int[] eps = new int[]{hnsw.entryNode()};
+    NeighborQueue candidates;
+    final int nodeLevel = getRandomGraphLevel(ml, random);
+    int curMaxLevel = hnsw.numLevels() - 1;
 
-      // if a node introduces new levels to the graph, add this new node on new levels
-      for (int level = nodeLevel; level > curMaxLevel; level--) {
+    // If entrynode is -1, then this should finish without adding neighbors
+    if (hnsw.entryNode() == -1) {
+      for (int level = nodeLevel; level >= 0; level--) {
         hnsw.addNode(level, node);
       }
+      return;
+    }
+    int[] eps = new int[]{hnsw.entryNode()};
 
-      // for levels > nodeLevel search with topk = 1
-      for (int level = curMaxLevel; level > nodeLevel; level--) {
-        candidates = graphSearcher.searchLevel(value, queryMemory, 1, level, eps, vectors, hnsw);
-        eps = new int[]{candidates.pop()};
-      }
-      // for levels <= nodeLevel search with topk = beamWidth, and add connections
-      for (int level = Math.min(nodeLevel, curMaxLevel); level >= 0; level--) {
-        candidates = graphSearcher.searchLevel(value, queryMemory, beamWidth, level, eps, vectors,
-            hnsw);
-        eps = candidates.nodes();
-        hnsw.addNode(level, node);
-        addDiverseNeighbors(level, node, candidates);
-      }
+    // if a node introduces new levels to the graph, add this new node on new levels
+    for (int level = nodeLevel; level > curMaxLevel; level--) {
+      hnsw.addNode(level, node);
+    }
+
+    // for levels > nodeLevel search with topk = 1
+    for (int level = curMaxLevel; level > nodeLevel; level--) {
+      candidates = graphSearcher.searchLevel(value, queryMemory, 1, level, eps, vectors, hnsw);
+      eps = new int[]{candidates.pop()};
+    }
+    // for levels <= nodeLevel search with topk = beamWidth, and add connections
+    for (int level = Math.min(nodeLevel, curMaxLevel); level >= 0; level--) {
+      candidates = graphSearcher.searchLevel(value, queryMemory, beamWidth, level, eps, vectors,
+          hnsw);
+      eps = candidates.nodes();
+      hnsw.addNode(level, node);
+      addDiverseNeighbors(level, node, candidates);
     }
   }
 
