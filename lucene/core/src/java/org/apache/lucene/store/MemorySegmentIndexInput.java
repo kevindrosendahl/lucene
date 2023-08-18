@@ -34,6 +34,7 @@ import org.apache.lucene.util.ArrayUtil;
  */
 @SuppressWarnings("preview")
 abstract class MemorySegmentIndexInput extends IndexInput implements RandomAccessInput {
+
   static final ValueLayout.OfByte LAYOUT_BYTE = ValueLayout.JAVA_BYTE;
   static final ValueLayout.OfShort LAYOUT_LE_SHORT =
       ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
@@ -210,11 +211,7 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
   @Override
   public MemorySegment readVectorSegment(int dimensions) {
-    System.out.println("this.curSegment.byteSize() = " + this.curSegment.byteSize());
-    System.out.println("this.curPosition = " + this.curPosition);
-    System.out.println("(this.curSegment.byteSize() - this.curPosition) = " + (this.curSegment.byteSize() - this.curPosition));
     var segment = curSegment.asSlice(curPosition);
-    System.out.println("segment.byteSize() = " + segment.byteSize());
     curPosition += Float.BYTES * (long) dimensions;
     return segment;
   }
@@ -404,7 +401,9 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     return buildSlice(sliceDescription, offset, length);
   }
 
-  /** Builds the actual sliced IndexInput (may apply extra offset in subclasses). * */
+  /**
+   * Builds the actual sliced IndexInput (may apply extra offset in subclasses). *
+   */
   MemorySegmentIndexInput buildSlice(String sliceDescription, long offset, long length) {
     ensureOpen();
 
@@ -459,7 +458,9 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     }
   }
 
-  /** Optimization of MemorySegmentIndexInput for when there is only one segment. */
+  /**
+   * Optimization of MemorySegmentIndexInput for when there is only one segment.
+   */
   static final class SingleSegmentImpl extends MemorySegmentIndexInput {
 
     SingleSegmentImpl(
@@ -468,7 +469,7 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
         MemorySegment segment,
         long length,
         int chunkSizePower) {
-      super(resourceDescription, arena, new MemorySegment[] {segment}, length, chunkSizePower);
+      super(resourceDescription, arena, new MemorySegment[]{segment}, length, chunkSizePower);
       this.curSegmentIndex = 0;
     }
 
@@ -533,8 +534,11 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     }
   }
 
-  /** This class adds offset support to MemorySegmentIndexInput, which is needed for slices. */
+  /**
+   * This class adds offset support to MemorySegmentIndexInput, which is needed for slices.
+   */
   static final class MultiSegmentImpl extends MemorySegmentIndexInput {
+
     private final long offset;
 
     MultiSegmentImpl(
