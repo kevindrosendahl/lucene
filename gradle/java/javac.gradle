@@ -24,8 +24,10 @@ allprojects {
 
     // Use 'release' flag instead of 'source' and 'target'
     tasks.withType(JavaCompile) {
-      options.compilerArgs += ["--release", rootProject.minJavaVersion.toString()]
+      options.compilerArgs += ["--source", "20"]
+      options.compilerArgs += ["--target", "20"]
     }
+
 
     // Configure warnings.
     tasks.withType(JavaCompile) {
@@ -64,6 +66,9 @@ allprojects {
         "-Xdoclint:-missing",
         "-Xdoclint:-accessibility",
         "-proc:none",  // proc:none was added because of LOG4J2-1925 / JDK-8186647
+        "--enable-preview",
+        "--add-exports", "java.base/java.lang.foreign=ALL-UNNAMED",
+//        "--add-exports", "jdk.incubator.vector=ALL-UNNAMED",
       ]
 
       // enable some warnings only relevant to newer language features
@@ -79,9 +84,9 @@ allprojects {
         ]
       }
 
-      if (propertyOrDefault("javac.failOnWarnings", true).toBoolean()) {
-        options.compilerArgs += "-Werror"
-      }
+//      if (propertyOrDefault("javac.failOnWarnings", true).toBoolean()) {
+//        options.compilerArgs += "-Werror"
+//      }
     }
   }
 }

@@ -33,9 +33,9 @@ configure(project(":lucene:core")) {
         
         inputs.file(apijar)
         
-        int releaseIndex = options.compilerArgs.indexOf("--release")
-        options.compilerArgs.removeAt(releaseIndex)
-        options.compilerArgs.removeAt(releaseIndex)
+//        int releaseIndex = options.compilerArgs.indexOf("--release")
+//        options.compilerArgs.removeAt(releaseIndex)
+//        options.compilerArgs.removeAt(releaseIndex)
         options.compilerArgs += [
           "-Xlint:-options",
           "--patch-module", "java.base=${apijar}",

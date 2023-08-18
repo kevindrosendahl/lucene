@@ -16,6 +16,9 @@
  */
 package org.apache.lucene.util;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.logging.Logger;
@@ -28,7 +31,9 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
-/** A VectorUtil provider implementation that leverages the Panama Vector API. */
+/**
+ * A VectorUtil provider implementation that leverages the Panama Vector API.
+ */
 final class VectorUtilPanamaProvider implements VectorUtilProvider {
 
   private static final int INT_SPECIES_PREF_BIT_SIZE = IntVector.SPECIES_PREFERRED.vectorBitSize();
@@ -40,8 +45,9 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
   /**
    * x86 and less than 256-bit vectors.
    *
-   * <p>it could be that it has only AVX1 and integer vectors are fast. it could also be that it has
-   * no AVX and integer vectors are extremely slow. don't use integer vectors to avoid landmines.
+   * <p>it could be that it has only AVX1 and integer vectors are fast. it could also be that it
+   * has no AVX and integer vectors are extremely slow. don't use integer vectors to avoid
+   * landmines.
    */
   private final boolean hasFastIntegerVectors;
 
@@ -278,6 +284,72 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
 
     for (; i < a.length; i++) {
       float diff = a[i] - b[i];
+      res += diff * diff;
+    }
+    return res;
+  }
+
+  public float squareDistance(MemorySegment a, MemorySegment b, int dimensions) {
+    int i = 0;
+    float res = 0;
+    // vector loop is unrolled 4x (4 accumulators in parallel)
+    FloatVector acc1 = FloatVector.zero(PREF_FLOAT_SPECIES);
+    FloatVector acc2 = FloatVector.zero(PREF_FLOAT_SPECIES);
+    FloatVector acc3 = FloatVector.zero(PREF_FLOAT_SPECIES);
+    FloatVector acc4 = FloatVector.zero(PREF_FLOAT_SPECIES);
+    int upperBound = PREF_FLOAT_SPECIES.loopBound(dimensions - 3 * PREF_FLOAT_SPECIES.length());
+    for (; i < upperBound; i += 4 * PREF_FLOAT_SPECIES.length()) {
+      FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+          (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+          (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff1 = va.sub(vb);
+      acc1 = acc1.add(diff1.mul(diff1));
+
+      FloatVector vc = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+          (long) PREF_FLOAT_SPECIES.length() * i + 4L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector vd = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+          (long) PREF_FLOAT_SPECIES.length() * i + 4L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff2 = vc.sub(vd);
+      acc2 = acc2.add(diff2.mul(diff2));
+
+      FloatVector ve = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+          (long) PREF_FLOAT_SPECIES.length() * i + 8L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector vf = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+          (long) PREF_FLOAT_SPECIES.length() * i + 8L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff3 = ve.sub(vf);
+      acc3 = acc3.add(diff3.mul(diff3));
+
+      FloatVector vg = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+          (long) PREF_FLOAT_SPECIES.length() * i + 12L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector vh = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+          (long) PREF_FLOAT_SPECIES.length() * i + 12L * PREF_FLOAT_SPECIES.length(),
+          ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff4 = vg.sub(vh);
+      acc4 = acc4.add(diff4.mul(diff4));
+    }
+    // vector tail: less scalar computations for unaligned sizes, esp with big vector sizes
+    upperBound = PREF_FLOAT_SPECIES.loopBound(dimensions);
+    for (; i < upperBound; i += PREF_FLOAT_SPECIES.length()) {
+      FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
+          (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
+          (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff = va.sub(vb);
+      acc1 = acc1.add(diff.mul(diff));
+    }
+    // reduce
+    FloatVector res1 = acc1.add(acc2);
+    FloatVector res2 = acc3.add(acc4);
+    res += res1.add(res2).reduceLanes(VectorOperators.ADD);
+
+    for (; i < dimensions; i++) {
+      float diff = a.getAtIndex(ValueLayout.JAVA_FLOAT, i) - b.getAtIndex(ValueLayout.JAVA_FLOAT, i);
       res += diff * diff;
     }
     return res;
