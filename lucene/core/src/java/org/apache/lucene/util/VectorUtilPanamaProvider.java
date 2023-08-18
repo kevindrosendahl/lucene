@@ -302,6 +302,8 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
     System.out.println("PREF_FLOAT_SPECIES.length() = " + PREF_FLOAT_SPECIES.length());
     for (; i < upperBound; i += 4 * PREF_FLOAT_SPECIES.length()) {
       System.out.println("i = " + i);
+      System.out.println(
+          "(long) PREF_FLOAT_SPECIES.length() * i = " + (long) PREF_FLOAT_SPECIES.length() * i);
       FloatVector va = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
           (long) PREF_FLOAT_SPECIES.length() * i, ByteOrder.LITTLE_ENDIAN);
       FloatVector vb = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, b,
@@ -327,6 +329,9 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
       FloatVector diff3 = ve.sub(vf);
       acc3 = acc3.add(diff3.mul(diff3));
 
+      System.out.println(
+          "(long) PREF_FLOAT_SPECIES.length() * i + 12L * PREF_FLOAT_SPECIES.length() = "
+              + (long) PREF_FLOAT_SPECIES.length() * i + 12L * PREF_FLOAT_SPECIES.length());
       FloatVector vg = FloatVector.fromMemorySegment(PREF_FLOAT_SPECIES, a,
           (long) PREF_FLOAT_SPECIES.length() * i + 12L * PREF_FLOAT_SPECIES.length(),
           ByteOrder.LITTLE_ENDIAN);
