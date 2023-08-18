@@ -349,7 +349,7 @@ public class HnswGraphSearcher<T> {
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
-      if (queryMemory == null) {
+      if (queryMemory == null || !vectors.canProvideSegment()) {
         return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
       } else {
         return 1 / (1f + squareDistance(queryMemory, vectors.vectorSegment(ord),

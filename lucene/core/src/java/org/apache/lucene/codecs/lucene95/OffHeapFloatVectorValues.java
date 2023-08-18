@@ -69,6 +69,11 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     return slice.readVectorSegment();
   }
 
+  @Override
+  public boolean canProvideSegment() {
+    return true;
+  }
+
   public abstract int ordToDoc(int ord);
 
   static OffHeapFloatVectorValues load(
