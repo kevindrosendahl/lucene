@@ -18,6 +18,7 @@
 package org.apache.lucene.util;
 
 import java.lang.Runtime.Version;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.security.AccessController;
@@ -37,6 +38,10 @@ interface VectorUtilProvider {
 
   /** Returns the sum of squared differences of the two vectors. */
   float squareDistance(float[] a, float[] b);
+
+  default float squareDistance(MemorySegment a, MemorySegment b, int dimensions) {
+    throw new UnsupportedOperationException();
+  }
 
   /** Returns the dot product computed over signed bytes. */
   int dotProduct(byte[] a, byte[] b);

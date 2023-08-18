@@ -209,6 +209,12 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
   }
 
   @Override
+  public MemorySegment readVectorSegment() {
+    var segment = curSegment.asSlice(curPosition);
+    return segment;
+  }
+
+  @Override
   public final short readShort() throws IOException {
     try {
       final short v = curSegment.get(LAYOUT_LE_SHORT, curPosition);

@@ -18,6 +18,7 @@
 package org.apache.lucene.codecs.lucene95;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorEncoding;
@@ -60,6 +61,12 @@ abstract class OffHeapFloatVectorValues extends FloatVectorValues
     slice.seek((long) targetOrd * byteSize);
     slice.readFloats(value, 0, value.length);
     return value;
+  }
+
+  @Override
+  public MemorySegment vectorSegment(int targetOrd) throws IOException {
+    slice.seek((long) targetOrd * byteSize);
+    return slice.readVectorSegment();
   }
 
   public abstract int ordToDoc(int ord);

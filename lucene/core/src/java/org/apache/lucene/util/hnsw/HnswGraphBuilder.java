@@ -21,6 +21,9 @@ import static java.lang.Math.log;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -41,21 +44,30 @@ import org.apache.lucene.util.InfoStream;
  */
 public final class HnswGraphBuilder<T> {
 
-  /** Default number of maximum connections per node */
+  /**
+   * Default number of maximum connections per node
+   */
   public static final int DEFAULT_MAX_CONN = 16;
 
   /**
-   * Default number of the size of the queue maintained while searching during a graph construction.
+   * Default number of the size of the queue maintained while searching during a graph
+   * construction.
    */
   public static final int DEFAULT_BEAM_WIDTH = 100;
 
-  /** Default random seed for level generation * */
+  /**
+   * Default random seed for level generation *
+   */
   private static final long DEFAULT_RAND_SEED = 42;
 
-  /** A name for the HNSW component for the info-stream * */
+  /**
+   * A name for the HNSW component for the info-stream *
+   */
   public static final String HNSW_COMPONENT = "HNSW";
 
-  /** Random seed for level generation; public to expose for testing * */
+  /**
+   * Random seed for level generation; public to expose for testing *
+   */
   public static long randSeed = DEFAULT_RAND_SEED;
 
   private final int M; // max number of connections on upper layers
@@ -109,13 +121,13 @@ public final class HnswGraphBuilder<T> {
    * Reads all the vectors from vector values, builds a graph connecting them by their dense
    * ordinals, using the given hyperparameter settings, and returns the resulting graph.
    *
-   * @param vectors the vectors whose relations are represented by the graph - must provide a
-   *     different view over those vectors than the one used to add via addGraphNode.
-   * @param M – graph fanout parameter used to calculate the maximum number of connections a node
-   *     can have – M on upper layers, and M * 2 on the lowest level.
+   * @param vectors   the vectors whose relations are represented by the graph - must provide a
+   *                  different view over those vectors than the one used to add via addGraphNode.
+   * @param M         – graph fanout parameter used to calculate the maximum number of connections a
+   *                  node can have – M on upper layers, and M * 2 on the lowest level.
    * @param beamWidth the size of the beam search to use when finding nearest neighbors.
-   * @param seed the seed for a random number generator used during graph construction. Provide this
-   *     to ensure repeatable construction.
+   * @param seed      the seed for a random number generator used during graph construction. Provide
+   *                  this to ensure repeatable construction.
    */
   private HnswGraphBuilder(
       RandomAccessVectorValues<T> vectors,
@@ -158,7 +170,7 @@ public final class HnswGraphBuilder<T> {
    * returned values.
    *
    * @param vectorsToAdd the vectors for which to build a nearest neighbors graph. Must be an
-   *     independent accessor for the vectors
+   *                     independent accessor for the vectors
    */
   public OnHeapHnswGraph build(RandomAccessVectorValues<T> vectorsToAdd) throws IOException {
     if (vectorsToAdd == this.vectors) {
@@ -178,9 +190,9 @@ public final class HnswGraphBuilder<T> {
    * initializer graph to their new ordinals in this builder's graph. The builder's graph must be
    * empty before calling this method.
    *
-   * @param initializerGraph graph used for initialization
+   * @param initializerGraph   graph used for initialization
    * @param oldToNewOrdinalMap map for converting from ordinals in the initializerGraph to this
-   *     builder's graph
+   *                           builder's graph
    */
   private void initializeFromGraph(
       HnswGraph initializerGraph, Map<Integer, Integer> oldToNewOrdinalMap) throws IOException {
@@ -250,7 +262,9 @@ public final class HnswGraphBuilder<T> {
     }
   }
 
-  /** Set info-stream to output debugging information * */
+  /**
+   * Set info-stream to output debugging information *
+   */
   public void setInfoStream(InfoStream infoStream) {
     this.infoStream = infoStream;
   }
@@ -259,37 +273,43 @@ public final class HnswGraphBuilder<T> {
     return hnsw;
   }
 
-  /** Inserts a doc with vector value to the graph */
+  /**
+   * Inserts a doc with vector value to the graph
+   */
   public void addGraphNode(int node, T value) throws IOException {
-    NeighborQueue candidates;
-    final int nodeLevel = getRandomGraphLevel(ml, random);
-    int curMaxLevel = hnsw.numLevels() - 1;
+    try (Arena arena = Arena.openConfined()) {
+      MemorySegment queryMemory = arena.allocateArray(ValueLayout.JAVA_FLOAT, (float[]) value);
+      NeighborQueue candidates;
+      final int nodeLevel = getRandomGraphLevel(ml, random);
+      int curMaxLevel = hnsw.numLevels() - 1;
 
-    // If entrynode is -1, then this should finish without adding neighbors
-    if (hnsw.entryNode() == -1) {
-      for (int level = nodeLevel; level >= 0; level--) {
+      // If entrynode is -1, then this should finish without adding neighbors
+      if (hnsw.entryNode() == -1) {
+        for (int level = nodeLevel; level >= 0; level--) {
+          hnsw.addNode(level, node);
+        }
+        return;
+      }
+      int[] eps = new int[]{hnsw.entryNode()};
+
+      // if a node introduces new levels to the graph, add this new node on new levels
+      for (int level = nodeLevel; level > curMaxLevel; level--) {
         hnsw.addNode(level, node);
       }
-      return;
-    }
-    int[] eps = new int[] {hnsw.entryNode()};
 
-    // if a node introduces new levels to the graph, add this new node on new levels
-    for (int level = nodeLevel; level > curMaxLevel; level--) {
-      hnsw.addNode(level, node);
-    }
-
-    // for levels > nodeLevel search with topk = 1
-    for (int level = curMaxLevel; level > nodeLevel; level--) {
-      candidates = graphSearcher.searchLevel(value, 1, level, eps, vectors, hnsw);
-      eps = new int[] {candidates.pop()};
-    }
-    // for levels <= nodeLevel search with topk = beamWidth, and add connections
-    for (int level = Math.min(nodeLevel, curMaxLevel); level >= 0; level--) {
-      candidates = graphSearcher.searchLevel(value, beamWidth, level, eps, vectors, hnsw);
-      eps = candidates.nodes();
-      hnsw.addNode(level, node);
-      addDiverseNeighbors(level, node, candidates);
+      // for levels > nodeLevel search with topk = 1
+      for (int level = curMaxLevel; level > nodeLevel; level--) {
+        candidates = graphSearcher.searchLevel(value, queryMemory, 1, level, eps, vectors, hnsw);
+        eps = new int[]{candidates.pop()};
+      }
+      // for levels <= nodeLevel search with topk = beamWidth, and add connections
+      for (int level = Math.min(nodeLevel, curMaxLevel); level >= 0; level--) {
+        candidates = graphSearcher.searchLevel(value, queryMemory, beamWidth, level, eps, vectors,
+            hnsw);
+        eps = candidates.nodes();
+        hnsw.addNode(level, node);
+        addDiverseNeighbors(level, node, candidates);
+      }
     }
   }
 
@@ -364,8 +384,8 @@ public final class HnswGraphBuilder<T> {
 
   /**
    * @param candidate the vector of a new candidate neighbor of a node n
-   * @param score the score of the new candidate and node n, to be compared with scores of the
-   *     candidate and n's neighbors
+   * @param score     the score of the new candidate and node n, to be compared with scores of the
+   *                  candidate and n's neighbors
    * @param neighbors the neighbors selected so far
    * @return whether the candidate is diverse given the existing neighbors
    */

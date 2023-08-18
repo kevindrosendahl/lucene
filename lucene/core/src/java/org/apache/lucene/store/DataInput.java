@@ -17,6 +17,7 @@
 package org.apache.lucene.store;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -195,6 +196,10 @@ public abstract class DataInput implements Cloneable {
     for (int i = 0; i < len; i++) {
       floats[offset + i] = Float.intBitsToFloat(readInt());
     }
+  }
+
+  public MemorySegment readVectorSegment() throws IOException {
+    throw new UnsupportedOperationException();
   }
 
   /**

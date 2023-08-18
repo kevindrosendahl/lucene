@@ -17,6 +17,12 @@
 
 package org.apache.lucene.util;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorOperators;
+
 /** Utilities for computations with numeric arrays */
 public final class VectorUtil {
 
@@ -80,6 +86,10 @@ public final class VectorUtil {
       throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
     }
     return PROVIDER.squareDistance(a, b);
+  }
+
+  public static float squareDistance(MemorySegment a, MemorySegment b, int dimensions) {
+    return PROVIDER.squareDistance(a, b, dimensions);
   }
 
   /**
