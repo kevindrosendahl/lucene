@@ -42,6 +42,8 @@ import org.apache.lucene.util.VectorUtil;
  */
 public class HnswGraphSearcher<T> {
 
+  public static boolean USE_MEMORY_SEGMENT_SIMD_IF_POSSIBLE = true;
+
   private final VectorSimilarityFunction similarityFunction;
   private final VectorEncoding vectorEncoding;
 
@@ -350,7 +352,8 @@ public class HnswGraphSearcher<T> {
     if (vectorEncoding == VectorEncoding.BYTE) {
       return similarityFunction.compare((byte[]) query, (byte[]) vectors.vectorValue(ord));
     } else {
-      if (queryMemory == null || !vectors.canProvideSegment()) {
+      if (queryMemory == null || !USE_MEMORY_SEGMENT_SIMD_IF_POSSIBLE
+          || !vectors.canProvideSegment()) {
         return similarityFunction.compare((float[]) query, (float[]) vectors.vectorValue(ord));
       } else {
         if (similarityFunction.equals(VectorSimilarityFunction.COSINE)) {
