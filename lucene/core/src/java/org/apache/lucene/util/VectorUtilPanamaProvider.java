@@ -53,7 +53,7 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
   static {
     try {
       var isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
-      var isArm = System.getProperty("os.arch").toLowerCase().indexOf("arm") >= 0;
+      var isArm = System.getProperty("os.arch").toLowerCase().indexOf("aarch64") >= 0;
       var home = Path.of(System.getProperty("user.home"));
       var mongot = isMac ? home.resolve("src/github.com/10gen/mongot") : home.resolve("mongot");
       var archDir = isArm ? "arm" : "intel";
