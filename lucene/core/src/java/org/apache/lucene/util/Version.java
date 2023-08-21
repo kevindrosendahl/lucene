@@ -30,6 +30,7 @@ import java.util.jar.Manifest;
  * match, and re-index.
  */
 public final class Version {
+  public static boolean USE_NATIVE = false;
 
   /**
    * Match settings and bugs in Lucene's 8.0.0 release.

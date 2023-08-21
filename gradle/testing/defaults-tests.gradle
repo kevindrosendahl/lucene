@@ -124,6 +124,7 @@ allprojects {
       // (if the runner JVM does not support them, it will fail tests):
       jvmArgs '--add-modules', 'jdk.unsupported,jdk.management'
       jvmArgs '--enable-preview'
+      jvmArgs '-Djava.library.path=/Users/kevin.rosendahl/src/github.com/10gen/mongot/bazel-bin/src/cpp/arm'
 
       // Enable the vector incubator module on supported Java versions:
       if (rootProject.vectorIncubatorJavaVersions.contains(rootProject.runtimeJavaVersion)) {

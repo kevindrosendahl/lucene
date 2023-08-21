@@ -16,9 +16,15 @@
  */
 package org.apache.lucene.util;
 
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SegmentScope;
+import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.logging.Logger;
@@ -41,6 +47,40 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
   private static final VectorSpecies<Float> PREF_FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
   private static final VectorSpecies<Byte> PREF_BYTE_SPECIES;
   private static final VectorSpecies<Short> PREF_SHORT_SPECIES;
+
+  private static MethodHandle COSINE_NATIVE;
+
+  static {
+    try {
+      var isMac = System.getProperty("os.name").toLowerCase().indexOf("mac") >= 0;
+      var isArm = System.getProperty("os.arch").toLowerCase().indexOf("arm") >= 0;
+      var home = Path.of(System.getProperty("user.home"));
+      var mongot = isMac ? home.resolve("src/github.com/10gen/mongot") : home.resolve("mongot");
+      var archDir = isArm ? "arm" : "intel";
+
+      var path = isMac ?
+          mongot.resolve("bazel-bin/src/cpp/arm/libvector_similarity_mac.dylib")
+          : mongot.resolve("bazel-bin/src/cpp").resolve(archDir).resolve("libvector_similarity.so");
+
+      SymbolLookup lookup =
+          SymbolLookup.libraryLookup(
+              path,
+              SegmentScope.global());
+
+      MemorySegment func = lookup.find("cosine").get();
+      FunctionDescriptor descriptor =
+          FunctionDescriptor.of(
+              ValueLayout.JAVA_FLOAT,
+              ValueLayout.ADDRESS,
+              ValueLayout.ADDRESS,
+              ValueLayout.JAVA_INT);
+
+      COSINE_NATIVE = Linker.nativeLinker().downcallHandle(func, descriptor);
+    } catch (Throwable t) {
+      System.out.println("couldn't find native implementation of dot product: " + t);
+      System.out.println("t = " + t);
+    }
+  }
 
   /**
    * x86 and less than 256-bit vectors.
@@ -290,6 +330,14 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
   }
 
   public float cosine(MemorySegment a, MemorySegment b, int dimensions) {
+    if (Version.USE_NATIVE) {
+      try {
+        COSINE_NATIVE.invoke(a.address(), b.address(), dimensions);
+      } catch (Throwable t) {
+        throw new RuntimeException(t);
+      }
+    }
+
     int i = 0;
     float sum = 0;
     float norm1 = 0;
