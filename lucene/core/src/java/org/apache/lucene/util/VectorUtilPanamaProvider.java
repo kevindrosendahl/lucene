@@ -332,7 +332,7 @@ final class VectorUtilPanamaProvider implements VectorUtilProvider {
   public float cosine(MemorySegment a, MemorySegment b, int dimensions) {
     if (Version.USE_NATIVE) {
       try {
-        COSINE_NATIVE.invoke(a.address(), b.address(), dimensions);
+        return (float) COSINE_NATIVE.invoke(a, b, dimensions);
       } catch (Throwable t) {
         throw new RuntimeException(t);
       }
