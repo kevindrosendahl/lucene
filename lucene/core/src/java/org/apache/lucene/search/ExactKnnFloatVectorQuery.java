@@ -24,7 +24,10 @@ public class ExactKnnFloatVectorQuery extends AbstractKnnVectorQuery {
   @Override
   protected TopDocs approximateSearch(LeafReaderContext context, Bits acceptDocs, int visitedLimit)
       throws IOException {
-    return exactSearch(context, new BitSetIterator((BitSet) acceptDocs, visitedLimit));
+    // FIXME: need to handle docs without vectors
+    var iterator = acceptDocs != null ? new BitSetIterator((BitSet) acceptDocs, visitedLimit)
+        : DocIdSetIterator.all(context.reader().maxDoc());
+    return exactSearch(context, iterator);
   }
 
   @Override
