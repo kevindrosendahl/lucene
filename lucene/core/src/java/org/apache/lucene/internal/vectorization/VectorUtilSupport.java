@@ -17,6 +17,8 @@
 
 package org.apache.lucene.internal.vectorization;
 
+import java.util.List;
+
 /**
  * Interface for implementations of VectorUtil support.
  *
@@ -32,6 +34,16 @@ public interface VectorUtilSupport {
 
   /** Returns the sum of squared differences of the two vectors. */
   float squareDistance(float[] a, float[] b);
+
+  void addInPlace(float[] v1, float[] v2);
+
+  void subInPlace(float[] v1, float[] v2);
+
+  float[] sum(List<float[]> vectors);
+
+  float sum(float[] vector);
+
+  void divInPlace(float[] vector, float divisor);
 
   /** Returns the dot product computed over signed bytes. */
   int dotProduct(byte[] a, byte[] b);

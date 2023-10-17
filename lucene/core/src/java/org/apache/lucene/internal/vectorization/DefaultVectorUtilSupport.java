@@ -17,6 +17,8 @@
 
 package org.apache.lucene.internal.vectorization;
 
+import java.util.List;
+
 final class DefaultVectorUtilSupport implements VectorUtilSupport {
 
   DefaultVectorUtilSupport() {}
@@ -117,6 +119,46 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
       squareSum += diff * diff;
     }
     return squareSum;
+  }
+
+  @Override
+  public void addInPlace(float[] v1, float[] v2) {
+    for (int i = 0; i < v1.length; i++) {
+      v1[i] += v2[i];
+    }
+  }
+
+  public void subInPlace(float[] v1, float[] v2) {
+    for (int i = 0; i < v1.length; i++) {
+      v1[i] -= v2[i];
+    }
+  }
+
+  @Override
+  public float[] sum(List<float[]> vectors) {
+    float[] sum = new float[vectors.get(0).length];
+    for (float[] vector : vectors) {
+      for (int i = 0; i < vector.length; i++) {
+        sum[i] += vector[i];
+      }
+    }
+    return sum;
+  }
+
+  @Override
+  public float sum(float[] vector) {
+    float sum = 0;
+    for (float v : vector) {
+      sum += v;
+    }
+    return sum;
+  }
+
+  @Override
+  public void divInPlace(float[] vector, float divisor) {
+    for (int i = 0; i < vector.length; i++) {
+      vector[i] /= divisor;
+    }
   }
 
   private static float squareDistanceUnrolled(float[] v1, float[] v2, int index) {

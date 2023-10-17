@@ -17,6 +17,7 @@
 
 package org.apache.lucene.util;
 
+import java.util.List;
 import org.apache.lucene.internal.vectorization.VectorUtilSupport;
 import org.apache.lucene.internal.vectorization.VectorizationProvider;
 
@@ -132,6 +133,26 @@ public final class VectorUtil {
     for (int i = 0; i < u.length; i++) {
       u[i] += v[i];
     }
+  }
+
+  public static void addInPlace(float[] v1, float[] v2) {
+    IMPL.addInPlace(v1, v2);
+  }
+
+  public static void subInPlace(float[] v1, float[] v2) {
+    IMPL.subInPlace(v1, v2);
+  }
+
+  public static float[] sum(List<float[]> vectors) {
+    return IMPL.sum(vectors);
+  }
+
+  public static float sum(float[] vector) {
+    return IMPL.sum(vector);
+  }
+
+  public static void divInPlace(float[] vector, float divisor) {
+    IMPL.divInPlace(vector, divisor);
   }
 
   /**

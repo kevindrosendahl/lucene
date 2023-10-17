@@ -21,11 +21,13 @@ import static jdk.incubator.vector.VectorOperators.B2I;
 import static jdk.incubator.vector.VectorOperators.B2S;
 import static jdk.incubator.vector.VectorOperators.S2I;
 
+import java.util.List;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.ShortVector;
 import jdk.incubator.vector.Vector;
+import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.util.Constants;
@@ -301,7 +303,100 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     return res1.add(res2).reduceLanes(ADD);
   }
 
-  // Binary functions, these all follow a general pattern like this:
+  public void addInPlace(float[] v1, float[] v2) {
+    if (v1.length != v2.length) {
+      throw new IllegalArgumentException("Vectors must have the same length");
+    }
+
+    int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(v1.length);
+
+    // Process the vectorized part
+    for (int i = 0; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      var a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, i);
+      var b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, i);
+      a.add(b).intoArray(v1, i);
+    }
+
+    // Process the tail
+    for (int i = vectorizedLength; i < v1.length; i++) {
+      v1[i] = v1[i] + v2[i];
+    }
+  }
+
+  public void subInPlace(float[] v1, float[] v2) {
+    if (v1.length != v2.length) {
+      throw new IllegalArgumentException("Vectors must have the same length");
+    }
+
+    int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(v1.length);
+
+    // Process the vectorized part
+    for (int i = 0; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      var a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, i);
+      var b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, i);
+      a.sub(b).intoArray(v1, i);
+    }
+
+    // Process the tail
+    for (int i = vectorizedLength; i < v1.length; i++) {
+      v1[i] = v1[i] - v2[i];
+    }
+  }
+
+  public void divInPlace(float[] vector, float divisor) {
+    int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(vector.length);
+
+    // Process the vectorized part
+    for (int i = 0; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      var a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, vector, i);
+      var divResult = a.div(divisor);
+      divResult.intoArray(vector, i);
+    }
+
+    // Process the tail
+    for (int i = vectorizedLength; i < vector.length; i++) {
+      vector[i] = vector[i] / divisor;
+    }
+  }
+
+  public float[] sum(List<float[]> vectors) {
+    if (vectors == null || vectors.isEmpty()) {
+      throw new IllegalArgumentException("Input list cannot be null or empty");
+    }
+
+    int dimension = vectors.get(0).length;
+    float[] sum = new float[dimension];
+
+    // Process each vector from the list
+    for (float[] vector : vectors) {
+      addInPlace(sum, vector);
+    }
+
+    return sum;
+  }
+
+  public float sum(float[] vector) {
+    var sum = FloatVector.zero(FloatVector.SPECIES_PREFERRED);
+    int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(vector.length);
+
+    // Process the vectorized part
+    for (int i = 0; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, vector, i);
+      sum = sum.add(a);
+    }
+
+    float res = sum.reduceLanes(VectorOperators.ADD);
+
+    // Process the tail
+    for (int i = vectorizedLength; i < vector.length; i++) {
+      res += vector[i];
+    }
+
+    return res;
+  }
+
+
+    // Binary functions, these all follow a general pattern like this:
   //
   //   short intermediate = a * b;
   //   int accumulator = (int)accumulator + (int)intermediate;
