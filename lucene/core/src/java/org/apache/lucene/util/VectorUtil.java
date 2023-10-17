@@ -135,6 +135,19 @@ public final class VectorUtil {
     }
   }
 
+  public static float[] sub(float[] lhs, float[] rhs) {
+    float[] result = new float[lhs.length];
+    for (int i = 0; i < lhs.length; i++) {
+      result[i] = lhs[i] - rhs[i];
+    }
+    return result;
+  }
+
+  public static float dotProduct(float[] a, int aoffset, float[] b, int boffset, int length) {
+    return IMPL.dotProduct(a, aoffset, b, boffset, length);
+  }
+
+
   public static void addInPlace(float[] v1, float[] v2) {
     IMPL.addInPlace(v1, v2);
   }
