@@ -44,7 +44,7 @@ public class ProductQuantization {
       this.centroids = centroids;
     }
 
-    public float[] getCentroid(int index) {
+    public float[] centroid(int index) {
       return centroids[index];
     }
 
@@ -97,7 +97,7 @@ public class ProductQuantization {
   public float[] decode(byte[] encoded) {
     float[] target = new float[this.decodedDimensionSize];
     for (int m = 0; m < M; m++) {
-      float[] centroid = codebooks[m].getCentroid(Byte.toUnsignedInt(encoded[m]));
+      float[] centroid = codebooks[m].centroid(Byte.toUnsignedInt(encoded[m]));
       System.arraycopy(centroid, 0, target, this.subvectorInfos[m].offset,
           this.subvectorInfos[m].size);
     }
@@ -117,7 +117,7 @@ public class ProductQuantization {
     float closestDistance = Float.MAX_VALUE;
 
     for (int i = 0; i < codebook.size(); i++) {
-      float distance = distance(subvector, codebook.getCentroid(i), similarityFunction);
+      float distance = distance(subvector, codebook.centroid(i), similarityFunction);
       if (distance < closestDistance) {
         closestDistance = distance;
         closestIndex = i;
