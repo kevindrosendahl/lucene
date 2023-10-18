@@ -14,6 +14,15 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class ProductQuantization {
 
+  public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M,
+      VectorSimilarityFunction similarityFunction,
+      Random random) throws IOException {
+    var trainingVectors = sampleTrainingVectors(ravv, MAX_PQ_TRAINING_SET_SIZE, random);
+    var subvectorInfos = getSubvectorInfo(ravv.dimension(), M);
+    var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, similarityFunction, random);
+    return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
+  }
+
   // Cannot go above 256 since we're packing these values into a byte.
   private static final int CLUSTERS = 256;
   private static final int K_MEANS_ITERATIONS = 6;
@@ -53,16 +62,6 @@ public class ProductQuantization {
     }
   }
 
-
-  public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M,
-      VectorSimilarityFunction similarityFunction,
-      Random random) throws IOException {
-    var trainingVectors = sampleTrainingVectors(ravv, MAX_PQ_TRAINING_SET_SIZE, random);
-    var subvectorInfos = getSubvectorInfo(ravv.dimension(), M);
-    var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, similarityFunction, random);
-    return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
-  }
-
   private static List<float[]> sampleTrainingVectors(RandomAccessVectorValues<float[]> ravv,
       int maxTrainingSize, Random random)
       throws IOException {
@@ -76,7 +75,7 @@ public class ProductQuantization {
     return vectors;
   }
 
-  public ProductQuantization(Codebook[] codebooks, SubvectorInfo[] subvectorInfos,
+  private ProductQuantization(Codebook[] codebooks, SubvectorInfo[] subvectorInfos,
       VectorSimilarityFunction similarityFunction) {
     this.codebooks = codebooks;
     this.M = codebooks.length;
@@ -104,7 +103,6 @@ public class ProductQuantization {
     return target;
   }
 
-
   private static float[] getSubVector(float[] vector, int m, SubvectorInfo[] subvectorInfos) {
     float[] subvector = new float[subvectorInfos[m].size];
     System.arraycopy(vector, subvectorInfos[m].offset, subvector, 0, subvectorInfos[m].size);
@@ -127,7 +125,6 @@ public class ProductQuantization {
     return closestIndex;
   }
 
-
   private static Codebook[] createCodebooks(List<float[]> vectors, int M,
       SubvectorInfo[] subvectorInfos, VectorSimilarityFunction similarityFunction, Random random) {
     return IntStream.range(0, M)
@@ -144,7 +141,6 @@ public class ProductQuantization {
     return KMeansPlusPlus.cluster(subvectors, CLUSTERS, similarityFunction,
         random, K_MEANS_ITERATIONS);
   }
-
 
   /**
    * Generates information about the division of a high-dimensional vector into subvectors. Each
