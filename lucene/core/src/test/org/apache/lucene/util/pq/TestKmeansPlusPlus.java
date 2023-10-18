@@ -10,24 +10,27 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
 
   @Test
   public void testCluster() {
-    float[][] points = {
-        {0.1f, 0.2f},
-        {0.15f, 0.25f},
-        {0.9f, 0.95f},
-        {0.85f, 0.9f},
-        {0.5f, 0.5f},
-        {0.55f, 0.55f}
-    };
+    Random random = random();
 
-    int k = 3;
-    VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
-    Random random = new Random(123);
-    int maxIterations = 100;
+    int numPoints = random.nextInt(1, 5000 + 1);
+    int dimensions = random.nextInt(1, 2048 + 1);
 
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
+    float[][] points = new float[numPoints][dimensions];
+    for (int i = 0; i < numPoints; i++) {
+      for (int j = 0; j < dimensions; j++) {
+        points[i][j] = random.nextFloat();
+      }
+    }
+
+    int k = random().nextInt(1, Math.max(1, numPoints));
+
+    VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+    int maxIterations = 6;
+
+    float[][] centroids = KMeansPlusPlus.cluster(points, k, similarityFunction, random, maxIterations);
     assertNotNull("Centroids should not be null", centroids);
 
-    // There should be k centroids and they should have the same dimensionality as the original points.
+    // There should be k centroids, and they should have the same dimensionality as the original points.
     assertEquals(k, centroids.length);
     assertEquals(points[0].length, centroids[0].length);
 
@@ -47,24 +50,8 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
         assertTrue(centroid[dim] >= min && centroid[dim] <= max);
       }
     }
-  }
 
-  @Test
-  public void testDataPointToCentroidAssignment() {
-    float[][] points = {
-        {0.1f, 0.2f},
-        {0.15f, 0.25f},
-        {0.9f, 0.95f},
-        {0.85f, 0.9f},
-        {0.5f, 0.5f},
-        {0.55f, 0.55f}
-    };
-    int k = 3;
-    Random random = new Random();
-    VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
-
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, similarityFunction, random, 100);
-
+    // Ensure each data point is assigned to the centroid closest to it.
     for (float[] point : points) {
       int nearestCluster = findNearestCluster(point, centroids, similarityFunction);
       float distance = distance(point, centroids[nearestCluster], similarityFunction);
@@ -83,7 +70,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     float[][] points = {{0.1f, 0.2f}, {0.15f, 0.25f}};
     int k = 0;
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
-    Random random = new Random();
+    Random random = random();
     int maxIterations = 100;
     KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
   }
@@ -94,7 +81,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
         {0.9f, 0.9f}};
     int k = 2;
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
-    Random random = new Random(123);
+    Random random = random();
     int maxIterations = 100;
     float[][] centroids = KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
 
@@ -107,7 +94,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
         {0.55f, 0.55f}};
     int k = 1;
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
-    Random random = new Random(123);
+    Random random = random();
     int maxIterations = 100;
     float[][] centroids = KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
 
