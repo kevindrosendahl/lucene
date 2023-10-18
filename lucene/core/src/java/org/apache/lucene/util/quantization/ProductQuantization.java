@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.clustering.KMeansPlusPlus;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class ProductQuantization {
