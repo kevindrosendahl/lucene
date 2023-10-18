@@ -52,11 +52,11 @@ public class ProductQuantization {
 
     // subtract the centroid from each training vector
     float[] globalCentroid = null;
-    if (globallyCenter) {
-      globalCentroid = KMeansPlusPlus.centroidOf(vectors);
-      var localGlobalCentroid = globalCentroid;
-      vectors.forEach(vector -> VectorUtil.subInPlace(vector, localGlobalCentroid));
-    }
+//    if (globallyCenter) {
+//      globalCentroid = KMeansPlusPlus.centroidOf(vectors);
+//      var localGlobalCentroid = globalCentroid;
+//      vectors.forEach(vector -> VectorUtil.subInPlace(vector, localGlobalCentroid));
+//    }
 
     // derive the codebooks
     var codebooks = createCodebooks(vectors, M, subvectorSizesAndOffsets);
@@ -192,17 +192,18 @@ public class ProductQuantization {
   }
 
   static float[][][] createCodebooks(List<float[]> vectors, int M, int[][] subvectorSizeAndOffset) {
-    return IntStream.range(0, M)
-        .mapToObj(m -> {
-          float[][] subvectors = vectors.stream().parallel()
-              .map(vector -> getSubVector(vector, m, subvectorSizeAndOffset))
-              .toArray(float[][]::new);
-          var clusterer = new KMeansPlusPlus(subvectors, CLUSTERS,
-              // FIXME: not always cosine
-              VectorSimilarityFunction.COSINE, new Random());
-          return clusterer.cluster(K_MEANS_ITERATIONS);
-        })
-        .toArray(float[][][]::new);
+    return new float[1][1][1];
+//    return IntStream.range(0, M)
+//        .mapToObj(m -> {
+//          float[][] subvectors = vectors.stream().parallel()
+//              .map(vector -> getSubVector(vector, m, subvectorSizeAndOffset))
+//              .toArray(float[][]::new);
+//          var clusterer = new KMeansPlusPlus(subvectors, CLUSTERS,
+//              // FIXME: not always cosine
+//              VectorSimilarityFunction.COSINE, new Random());
+//          return clusterer.cluster(K_MEANS_ITERATIONS);
+//        })
+//        .toArray(float[][][]::new);
   }
 
   static int closetCentroidIndex(float[] subvector, float[][] codebook) {
