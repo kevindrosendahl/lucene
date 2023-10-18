@@ -1,5 +1,6 @@
 package org.apache.lucene.util.pq;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import java.util.Random;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -24,10 +25,12 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
 
     int k = random().nextInt(1, Math.max(1, numPoints));
 
-    VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+    VectorSimilarityFunction similarityFunction = RandomizedTest.randomFrom(
+        VectorSimilarityFunction.values());
     int maxIterations = 6;
 
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, similarityFunction, random, maxIterations);
+    float[][] centroids = KMeansPlusPlus.cluster(points, k, similarityFunction, random,
+        maxIterations);
     assertNotNull("Centroids should not be null", centroids);
 
     // There should be k centroids, and they should have the same dimensionality as the original points.
