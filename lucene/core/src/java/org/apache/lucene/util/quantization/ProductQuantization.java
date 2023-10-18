@@ -150,17 +150,19 @@ public class ProductQuantization {
    * Generates information about the division of a high-dimensional vector into subvectors. Each
    * subvector is described by its size and offset within the original vector.
    * <p>
-   * - Size: The number of dimensions in the subvector. - Offset: The starting dimension in the
-   * original vector for this subvector.
+   * <li>Size: The number of dimensions in the subvector.</li>
+   * <li>Offset: The starting dimension in the original vector for this subvector.</li>
    * </p>
    * <p>
-   * When `M` is a factor of `dimensions`: - Each subvector will have an equal size of `dimensions /
-   * M`. - Offsets will be [0, size, 2*size, ..., (M-1)*size].
+   * When `M` is a factor of `dimensions`:
+   * <li>Each subvector will have an equal size of `dimensions / M`.</li>
+   * <li>Offsets will be [0, size, 2*size, ..., (M-1)*size].</li>
    * </p>
    * <p>
-   * When `M` is not a factor of `dimensions`: - The base size for each subvector is `dimensions /
-   * M`. - A remainder of `dimensions % M` is distributed among the first few subvectors. - Offsets
-   * will be calculated based on these sizes.
+   * When `M` is not a factor of `dimensions`:
+   * <li>The base size for each subvector is `dimensions /M</li>`.
+   * <li>A remainder of `dimensions % M` is distributed among the first few subvectors.</li>
+   * <li>Offsets will be calculated based on these sizes.</li>
    * </p>
    */
   private static SubvectorInfo[] getSubvectorInfo(int dimensions, int M) {
