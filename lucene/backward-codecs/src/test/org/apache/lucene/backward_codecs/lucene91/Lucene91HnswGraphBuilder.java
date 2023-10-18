@@ -31,7 +31,7 @@ import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 /**

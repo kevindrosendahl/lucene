@@ -34,6 +34,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.junit.Before;
 
 /** Tests HNSW KNN graphs */

@@ -48,7 +48,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /**
  * Reads vector values from a simple text format. All vectors are read up front and cached in RAM in

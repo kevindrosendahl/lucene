@@ -21,7 +21,7 @@ import java.io.IOException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.TermAndVector;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /**
  * Word2VecModel is a class representing the parsed Word2Vec model containing the vectors for each

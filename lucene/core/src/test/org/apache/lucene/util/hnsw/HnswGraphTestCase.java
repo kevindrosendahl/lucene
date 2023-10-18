@@ -78,6 +78,7 @@ import org.apache.lucene.util.NamedThreadFactory;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /** Tests HNSW KNN graphs */
 abstract class HnswGraphTestCase<T> extends LuceneTestCase {

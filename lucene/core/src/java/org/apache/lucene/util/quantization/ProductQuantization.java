@@ -10,10 +10,11 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.clustering.KMeansPlusPlus;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 public class ProductQuantization {
 
+  // TODO: consider normalizing around the global centroid
   public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M,
       VectorSimilarityFunction similarityFunction,
       Random random) throws IOException {

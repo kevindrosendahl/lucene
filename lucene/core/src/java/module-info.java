@@ -61,6 +61,7 @@ module org.apache.lucene.core {
   // Open certain packages for the test framework (ram usage tester).
   opens org.apache.lucene.document to
       org.apache.lucene.test_framework;
+  exports org.apache.lucene.util.vectors;
 
   provides org.apache.lucene.analysis.TokenizerFactory with
       org.apache.lucene.analysis.standard.StandardTokenizerFactory;

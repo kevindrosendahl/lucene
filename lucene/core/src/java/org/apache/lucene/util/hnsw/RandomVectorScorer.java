@@ -19,6 +19,7 @@ package org.apache.lucene.util.hnsw;
 
 import java.io.IOException;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /** A {@link RandomVectorScorer} for scoring random nodes in batches against an abstract query. */
 public interface RandomVectorScorer {

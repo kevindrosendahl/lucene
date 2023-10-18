@@ -30,6 +30,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.junit.Before;
 
 /** Tests HNSW KNN graphs */

@@ -44,6 +44,7 @@ import org.apache.lucene.util.*;
 import org.apache.lucene.util.hnsw.*;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /**
  * Writes vector values and knn graphs to index segments.
