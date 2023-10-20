@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.clustering.KMeansPlusPlus;
+import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
 import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 public class ProductQuantization {
@@ -139,8 +139,8 @@ public class ProductQuantization {
     float[][] subvectors = vectors.stream()
         .map(v -> getSubVector(v, m, subvectorInfos))
         .toArray(float[][]::new);
-    return KMeansPlusPlus.cluster(subvectors, CLUSTERS, similarityFunction,
-        random, K_MEANS_ITERATIONS);
+    var clusterer = new KMeansPlusPlusClusterer(similarityFunction, K_MEANS_ITERATIONS, random);
+    return clusterer.cluster(subvectors, CLUSTERS);
   }
 
   /**

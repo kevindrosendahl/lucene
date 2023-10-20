@@ -28,8 +28,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
         VectorSimilarityFunction.values());
     int maxIterations = 6;
 
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, similarityFunction, random,
-        maxIterations);
+    float[][] centroids = new KMeansPlusPlusClusterer(similarityFunction, maxIterations, random).cluster(points, k);
     assertNotNull("centroids should not be null", centroids);
 
     // There should be k centroids, and they should have the same dimensionality as the original points.
@@ -74,7 +73,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
     Random random = random();
     int maxIterations = 100;
-    KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
+    new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
   }
 
   @Test
@@ -85,7 +84,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
     Random random = random();
     int maxIterations = 100;
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
+    float[][] centroids = new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
 
     assertEquals("Should have two centroids", 2, centroids.length);
   }
@@ -98,7 +97,7 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
     Random random = random();
     int maxIterations = 100;
-    float[][] centroids = KMeansPlusPlus.cluster(points, k, simFunc, random, maxIterations);
+    float[][] centroids = new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
 
     assertEquals("Should have one centroid", 1, centroids.length);
   }
