@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.HnswGraphProvider;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
@@ -175,18 +176,13 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
   }
 
   private void writeField(FieldWriter<?> fieldData, int maxDoc) throws IOException {
-    // write vector values
+    // TODO: write full fidelity vectors if quantizing
     long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-    switch (fieldData.fieldInfo.getVectorEncoding()) {
-      case BYTE -> writeByteVectors(fieldData);
-      case FLOAT32 -> writeFloat32Vectors(fieldData);
-    }
     long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
     // write graph
     long vectorIndexOffset = vectorIndex.getFilePointer();
-    OnHeapHnswGraph graph = fieldData.getGraph();
-    int[][] graphLevelNodeOffsets = writeGraph(graph);
+    int[][] graphLevelNodeOffsets = writeGraph(fieldData);
     long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
 
     writeMeta(
@@ -197,7 +193,8 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
         vectorIndexOffset,
         vectorIndexLength,
         fieldData.docsWithField,
-        graph,
+//        graph,
+        null,
         graphLevelNodeOffsets);
   }
 
@@ -487,7 +484,8 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
                 yield hnswGraphBuilder.build(vectorValues.size());
               }
             };
-        vectorIndexNodeOffsets = writeGraph(graph);
+        // FIXME: merge graph
+//        vectorIndexNodeOffsets = writeGraph(graph);
       }
       long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
       writeMeta(
@@ -692,46 +690,67 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
     return true;
   }
 
-  /**
-   * @param graph Write the graph in a compressed format
-   * @return The non-cumulative offsets for the nodes. Should be used to create cumulative offsets.
-   * @throws IOException if writing to vectorIndex fails
-   */
-  private int[][] writeGraph(OnHeapHnswGraph graph) throws IOException {
+  private int[][] writeGraph(FieldWriter<?> fieldData) throws IOException {
+    var graph = fieldData.getGraph();
     if (graph == null) {
       return new int[0][0];
     }
-    // write vectors' neighbours on each level into the vectorIndex file
-    int countOnLevel0 = graph.size();
+
+    var encoding = fieldData.fieldInfo.getVectorEncoding();
+    var vectorBuffer =
+        encoding == VectorEncoding.FLOAT32 ? ByteBuffer.allocate(fieldData.dim * Float.SIZE)
+            .order(ByteOrder.LITTLE_ENDIAN) : null;
+
+    // offsets[level][nodeIdx] is the offset into the index file for that node in that level.
+    // note that nodeIdx is not the ordinal, but rather that ordinal's position in the sorted
+    // list of ordinals in that level.
     int[][] offsets = new int[graph.numLevels()][];
+
     for (int level = 0; level < graph.numLevels(); level++) {
       int[] sortedNodes = getSortedNodes(graph.getNodesOnLevel(level));
       offsets[level] = new int[sortedNodes.length];
       int nodeOffsetId = 0;
+      long offsetStart = vectorIndex.getFilePointer();
+
       for (int node : sortedNodes) {
+        var offset = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+        offsets[level][nodeOffsetId++] = offset;
+
+        // Write the full fidelity vector
+        var vector = fieldData.vectors.get(node);
+        switch (encoding) {
+          case BYTE -> {
+            byte[] v = (byte[]) vector;
+            vectorIndex.writeBytes(v, v.length);
+          }
+          case FLOAT32 -> {
+            vectorBuffer.asFloatBuffer().put((float[]) vector);
+            vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+          }
+        }
+
+        // Encode neighbors as vints.
         NeighborArray neighbors = graph.getNeighbors(level, node);
         int size = neighbors.size();
-        // Write size in VInt as the neighbors list is typically small
-        long offsetStart = vectorIndex.getFilePointer();
-        vectorIndex.writeVInt(size);
-        // Destructively modify; it's ok we are discarding it after this
         int[] nnodes = neighbors.node();
         Arrays.sort(nnodes, 0, size);
-        // Now that we have sorted, do delta encoding to minimize the required bits to store the
-        // information
+
         for (int i = size - 1; i > 0; --i) {
-          assert nnodes[i] < countOnLevel0 : "node too large: " + nnodes[i] + ">=" + countOnLevel0;
           nnodes[i] -= nnodes[i - 1];
         }
         for (int i = 0; i < size; i++) {
           vectorIndex.writeVInt(nnodes[i]);
         }
-        offsets[level][nodeOffsetId++] =
-            Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+
+        if (encoding == VectorEncoding.FLOAT32) {
+          vectorIndex.alignFilePointer(Float.BYTES);
+        }
       }
     }
+
     return offsets;
   }
+
 
   public static int[] getSortedNodes(NodesIterator nodesOnLevel) {
     int[] sortedNodes = new int[nodesOnLevel.size()];
@@ -768,48 +787,51 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
     OrdToDocDISIReaderConfiguration.writeStoredMeta(
         DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
     meta.writeVInt(M);
+
     // write graph nodes on each level
     if (graph == null) {
       meta.writeVInt(0);
-    } else {
-      meta.writeVInt(graph.numLevels());
-      long valueCount = 0;
-      for (int level = 0; level < graph.numLevels(); level++) {
-        NodesIterator nodesOnLevel = graph.getNodesOnLevel(level);
-        valueCount += nodesOnLevel.size();
-        if (level > 0) {
-          int[] nol = new int[nodesOnLevel.size()];
-          int numberConsumed = nodesOnLevel.consume(nol);
-          Arrays.sort(nol);
-          assert numberConsumed == nodesOnLevel.size();
-          meta.writeVInt(nol.length); // number of nodes on a level
-          for (int i = nodesOnLevel.size() - 1; i > 0; --i) {
-            nol[i] -= nol[i - 1];
-          }
-          for (int n : nol) {
-            assert n >= 0 : "delta encoding for nodes failed; expected nodes to be sorted";
-            meta.writeVInt(n);
-          }
-        } else {
-          assert nodesOnLevel.size() == count : "Level 0 expects to have all nodes";
-        }
-      }
-      long start = vectorIndex.getFilePointer();
-      meta.writeLong(start);
-      meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-      final DirectMonotonicWriter memoryOffsetsWriter =
-          DirectMonotonicWriter.getInstance(
-              meta, vectorIndex, valueCount, DIRECT_MONOTONIC_BLOCK_SHIFT);
-      long cumulativeOffsetSum = 0;
-      for (int[] levelOffsets : graphLevelNodeOffsets) {
-        for (int v : levelOffsets) {
-          memoryOffsetsWriter.add(cumulativeOffsetSum);
-          cumulativeOffsetSum += v;
-        }
-      }
-      memoryOffsetsWriter.finish();
-      meta.writeLong(vectorIndex.getFilePointer() - start);
+      return;
     }
+
+    meta.writeVInt(graph.numLevels());
+    long valueCount = 0;
+    for (int level = 0; level < graph.numLevels(); level++) {
+      NodesIterator nodesOnLevel = graph.getNodesOnLevel(level);
+      valueCount += nodesOnLevel.size();
+      if (level > 0) {
+        int[] nol = new int[nodesOnLevel.size()];
+        int numberConsumed = nodesOnLevel.consume(nol);
+        Arrays.sort(nol);
+        assert numberConsumed == nodesOnLevel.size();
+        meta.writeVInt(nol.length); // number of nodes on a level
+        for (int i = nodesOnLevel.size() - 1; i > 0; --i) {
+          nol[i] -= nol[i - 1];
+        }
+        for (int n : nol) {
+          assert n >= 0 : "delta encoding for nodes failed; expected nodes to be sorted";
+          meta.writeVInt(n);
+        }
+      } else {
+        assert nodesOnLevel.size() == count : "Level 0 expects to have all nodes";
+      }
+    }
+
+    long start = vectorIndex.getFilePointer();
+    meta.writeLong(start);
+    meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
+    final DirectMonotonicWriter memoryOffsetsWriter =
+        DirectMonotonicWriter.getInstance(
+            meta, vectorIndex, valueCount, DIRECT_MONOTONIC_BLOCK_SHIFT);
+    long cumulativeOffsetSum = 0;
+    for (int[] levelOffsets : graphLevelNodeOffsets) {
+      for (int v : levelOffsets) {
+        memoryOffsetsWriter.add(cumulativeOffsetSum);
+        cumulativeOffsetSum += v;
+      }
+    }
+    memoryOffsetsWriter.finish();
+    meta.writeLong(vectorIndex.getFilePointer() - start);
   }
 
   /**
