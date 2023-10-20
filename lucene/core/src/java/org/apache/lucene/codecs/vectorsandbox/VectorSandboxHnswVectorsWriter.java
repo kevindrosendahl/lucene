@@ -193,25 +193,8 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
         vectorIndexOffset,
         vectorIndexLength,
         fieldData.docsWithField,
-//        graph,
-        null,
+        fieldData.getGraph(),
         graphLevelNodeOffsets);
-  }
-
-  private void writeFloat32Vectors(FieldWriter<?> fieldData) throws IOException {
-    final ByteBuffer buffer =
-        ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-    for (Object v : fieldData.vectors) {
-      buffer.asFloatBuffer().put((float[]) v);
-      vectorData.writeBytes(buffer.array(), buffer.array().length);
-    }
-  }
-
-  private void writeByteVectors(FieldWriter<?> fieldData) throws IOException {
-    for (Object v : fieldData.vectors) {
-      byte[] vector = (byte[]) v;
-      vectorData.writeBytes(vector, vector.length);
-    }
   }
 
   private void writeSortingField(FieldWriter<?> fieldData, int maxDoc, Sorter.DocMap sortMap)
@@ -424,13 +407,16 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
       IOUtils.close(tempVectorData);
 
       // copy the temporary file vectors to the actual data file
+      // FIXME: don't put vectors into actual data file
       vectorDataInput =
           segmentWriteState.directory.openInput(
               tempVectorData.getName(), segmentWriteState.context);
       vectorData.copyBytes(vectorDataInput, vectorDataInput.length() - CodecUtil.footerLength());
       CodecUtil.retrieveChecksum(vectorDataInput);
+
       long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
       long vectorIndexOffset = vectorIndex.getFilePointer();
+
       // build the graph using the temporary vector data
       // we use Lucene95HnswVectorsReader.DenseOffHeapVectorValues for the graph construction
       // doesn't need to know docIds

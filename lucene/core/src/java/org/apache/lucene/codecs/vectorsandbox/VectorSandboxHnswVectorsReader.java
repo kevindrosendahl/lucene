@@ -488,6 +488,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
     @Override
     public void seek(int level, int targetOrd) throws IOException {
+      // FIXME: seek past vector here
       int targetIndex =
           level == 0
               ? targetOrd
