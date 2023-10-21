@@ -197,7 +197,7 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
 
     var encoding = fieldData.fieldInfo.getVectorEncoding();
     var vectorBuffer =
-        encoding == VectorEncoding.FLOAT32 ? ByteBuffer.allocate(fieldData.dim * Float.SIZE)
+        encoding == VectorEncoding.FLOAT32 ? ByteBuffer.allocate(fieldData.dim * Float.BYTES)
             .order(ByteOrder.LITTLE_ENDIAN) : null;
 
     // offsets[level][nodeIdx] is the offset into the index file for that node in that level.
