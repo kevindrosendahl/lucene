@@ -59,8 +59,8 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader implements
     HnswGraphProvider {
 
-  private static final long SHALLOW_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(VectorSandboxHnswVectorsFormat.class);
+  private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(
+      VectorSandboxHnswVectorsFormat.class);
 
   private final FieldInfos fieldInfos;
   private final Map<String, FieldEntry> fields = new HashMap<>();
@@ -72,18 +72,12 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     int versionMeta = readMetadata(state);
     boolean success = false;
     try {
-      vectorData =
-          openDataInput(
-              state,
-              versionMeta,
-              VectorSandboxHnswVectorsFormat.VECTOR_DATA_EXTENSION,
-              VectorSandboxHnswVectorsFormat.VECTOR_DATA_CODEC_NAME);
-      vectorIndex =
-          openDataInput(
-              state,
-              versionMeta,
-              VectorSandboxHnswVectorsFormat.VECTOR_INDEX_EXTENSION,
-              VectorSandboxHnswVectorsFormat.VECTOR_INDEX_CODEC_NAME);
+      vectorData = openDataInput(state, versionMeta,
+          VectorSandboxHnswVectorsFormat.VECTOR_DATA_EXTENSION,
+          VectorSandboxHnswVectorsFormat.VECTOR_DATA_CODEC_NAME);
+      vectorIndex = openDataInput(state, versionMeta,
+          VectorSandboxHnswVectorsFormat.VECTOR_INDEX_EXTENSION,
+          VectorSandboxHnswVectorsFormat.VECTOR_INDEX_CODEC_NAME);
       success = true;
     } finally {
       if (success == false) {
@@ -93,22 +87,17 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
   }
 
   private int readMetadata(SegmentReadState state) throws IOException {
-    String metaFileName =
-        IndexFileNames.segmentFileName(
-            state.segmentInfo.name, state.segmentSuffix,
-            VectorSandboxHnswVectorsFormat.META_EXTENSION);
+    String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name,
+        state.segmentSuffix, VectorSandboxHnswVectorsFormat.META_EXTENSION);
     int versionMeta = -1;
     try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
       Throwable priorE = null;
       try {
-        versionMeta =
-            CodecUtil.checkIndexHeader(
-                meta,
-                VectorSandboxHnswVectorsFormat.META_CODEC_NAME,
-                VectorSandboxHnswVectorsFormat.VERSION_START,
-                VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix);
+        versionMeta = CodecUtil.checkIndexHeader(meta,
+            VectorSandboxHnswVectorsFormat.META_CODEC_NAME,
+            VectorSandboxHnswVectorsFormat.VERSION_START,
+            VectorSandboxHnswVectorsFormat.VERSION_CURRENT, state.segmentInfo.getId(),
+            state.segmentSuffix);
         readFields(meta, state.fieldInfos);
       } catch (Throwable exception) {
         priorE = exception;
@@ -119,31 +108,21 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     return versionMeta;
   }
 
-  private static IndexInput openDataInput(
-      SegmentReadState state, int versionMeta, String fileExtension, String codecName)
-      throws IOException {
-    String fileName =
-        IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
+  private static IndexInput openDataInput(SegmentReadState state, int versionMeta,
+      String fileExtension, String codecName) throws IOException {
+    String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix,
+        fileExtension);
     IndexInput in = state.directory.openInput(fileName, state.context);
     boolean success = false;
     try {
-      int versionVectorData =
-          CodecUtil.checkIndexHeader(
-              in,
-              codecName,
-              VectorSandboxHnswVectorsFormat.VERSION_START,
-              VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
-              state.segmentInfo.getId(),
-              state.segmentSuffix);
+      int versionVectorData = CodecUtil.checkIndexHeader(in, codecName,
+          VectorSandboxHnswVectorsFormat.VERSION_START,
+          VectorSandboxHnswVectorsFormat.VERSION_CURRENT, state.segmentInfo.getId(),
+          state.segmentSuffix);
       if (versionMeta != versionVectorData) {
         throw new CorruptIndexException(
-            "Format versions mismatch: meta="
-                + versionMeta
-                + ", "
-                + codecName
-                + "="
-                + versionVectorData,
-            in);
+            "Format versions mismatch: meta=" + versionMeta + ", " + codecName + "="
+                + versionVectorData, in);
       }
       CodecUtil.retrieveChecksum(in);
       success = true;
@@ -171,33 +150,21 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     int dimension = info.getVectorDimension();
     if (dimension != fieldEntry.dimension) {
       throw new IllegalStateException(
-          "Inconsistent vector dimension for field=\""
-              + info.name
-              + "\"; "
-              + dimension
-              + " != "
+          "Inconsistent vector dimension for field=\"" + info.name + "\"; " + dimension + " != "
               + fieldEntry.dimension);
     }
 
-    int byteSize =
-        switch (info.getVectorEncoding()) {
-          case BYTE -> Byte.BYTES;
-          case FLOAT32 -> Float.BYTES;
-        };
+    int byteSize = switch (info.getVectorEncoding()) {
+      case BYTE -> Byte.BYTES;
+      case FLOAT32 -> Float.BYTES;
+    };
     long vectorBytes = Math.multiplyExact((long) dimension, byteSize);
     long numBytes = Math.multiplyExact(vectorBytes, fieldEntry.size);
     // FIXME: remove vectors file completely
     if (0 != fieldEntry.vectorDataLength) {
       throw new IllegalStateException(
-          "Vector data length "
-              + fieldEntry.vectorDataLength
-              + " not matching size="
-              + fieldEntry.size
-              + " * dim="
-              + dimension
-              + " * byteSize="
-              + byteSize
-              + " = "
+          "Vector data length " + fieldEntry.vectorDataLength + " not matching size="
+              + fieldEntry.size + " * dim=" + dimension + " * byteSize=" + byteSize + " = "
               + numBytes);
     }
   }
@@ -206,8 +173,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     int similarityFunctionId = input.readInt();
     if (similarityFunctionId < 0
         || similarityFunctionId >= VectorSimilarityFunction.values().length) {
-      throw new CorruptIndexException(
-          "Invalid similarity function id: " + similarityFunctionId, input);
+      throw new CorruptIndexException("Invalid similarity function id: " + similarityFunctionId,
+          input);
     }
     return VectorSimilarityFunction.values()[similarityFunctionId];
   }
@@ -228,9 +195,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
   @Override
   public long ramBytesUsed() {
-    return VectorSandboxHnswVectorsReader.SHALLOW_SIZE
-        + RamUsageEstimator.sizeOfMap(
-        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+    return VectorSandboxHnswVectorsReader.SHALLOW_SIZE + RamUsageEstimator.sizeOfMap(fields,
+        RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -244,13 +210,11 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     FieldEntry fieldEntry = fields.get(field);
     if (fieldEntry.vectorEncoding != VectorEncoding.FLOAT32) {
       throw new IllegalArgumentException(
-          "field=\""
-              + field
-              + "\" is encoded as: "
-              + fieldEntry.vectorEncoding
-              + " expected: "
+          "field=\"" + field + "\" is encoded as: " + fieldEntry.vectorEncoding + " expected: "
               + VectorEncoding.FLOAT32);
     }
+
+    // FIXME: create FloatVectorValues from graph
     return OffHeapFloatVectorValues.load(
         fieldEntry.ordToDocVectorValues,
         fieldEntry.vectorEncoding,
@@ -265,20 +229,11 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     FieldEntry fieldEntry = fields.get(field);
     if (fieldEntry.vectorEncoding != VectorEncoding.BYTE) {
       throw new IllegalArgumentException(
-          "field=\""
-              + field
-              + "\" is encoded as: "
-              + fieldEntry.vectorEncoding
-              + " expected: "
+          "field=\"" + field + "\" is encoded as: " + fieldEntry.vectorEncoding + " expected: "
               + VectorEncoding.FLOAT32);
     }
-    return OffHeapByteVectorValues.load(
-        fieldEntry.ordToDocVectorValues,
-        fieldEntry.vectorEncoding,
-        fieldEntry.dimension,
-        fieldEntry.vectorDataOffset,
-        fieldEntry.vectorDataLength,
-        vectorData);
+    return OffHeapByteVectorValues.load(fieldEntry.ordToDocVectorValues, fieldEntry.vectorEncoding,
+        fieldEntry.dimension, fieldEntry.vectorDataOffset, fieldEntry.vectorDataLength, vectorData);
   }
 
   @Override
@@ -286,27 +241,18 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
       throws IOException {
     FieldEntry fieldEntry = fields.get(field);
 
-    if (fieldEntry.size() == 0
-        || knnCollector.k() == 0
+    if (fieldEntry.size() == 0 || knnCollector.k() == 0
         || fieldEntry.vectorEncoding != VectorEncoding.FLOAT32) {
       return;
     }
 
-    OffHeapFloatVectorValues vectorValues =
-        OffHeapFloatVectorValues.load(
-            fieldEntry.ordToDocVectorValues,
-            fieldEntry.vectorEncoding,
-            fieldEntry.dimension,
-            fieldEntry.vectorDataOffset,
-            fieldEntry.vectorDataLength,
-            vectorData);
-    RandomVectorScorer scorer =
-        RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
-    HnswGraphSearcher.search(
-        scorer,
-        new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
-        getGraph(fieldEntry),
-        vectorValues.getAcceptOrds(acceptDocs));
+    var scorer = new InGraphOffHeapFloatScorer(fieldEntry, vectorIndex,
+        fieldEntry.similarityFunction).scorer(target);
+    HnswGraphSearcher.search(scorer,
+        // FIXME: support translation
+        new OrdinalTranslatedKnnCollector(knnCollector, ord -> ord),
+        // FIXME: support filtered
+        getGraph(fieldEntry), acceptDocs);
   }
 
   @Override
@@ -314,27 +260,20 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
       throws IOException {
     FieldEntry fieldEntry = fields.get(field);
 
-    if (fieldEntry.size() == 0
-        || knnCollector.k() == 0
+    if (fieldEntry.size() == 0 || knnCollector.k() == 0
         || fieldEntry.vectorEncoding != VectorEncoding.BYTE) {
       return;
     }
 
-    OffHeapByteVectorValues vectorValues =
-        OffHeapByteVectorValues.load(
-            fieldEntry.ordToDocVectorValues,
-            fieldEntry.vectorEncoding,
-            fieldEntry.dimension,
-            fieldEntry.vectorDataOffset,
-            fieldEntry.vectorDataLength,
-            vectorData);
-    RandomVectorScorer scorer =
-        RandomVectorScorer.createBytes(vectorValues, fieldEntry.similarityFunction, target);
-    HnswGraphSearcher.search(
-        scorer,
+    // FIXME: support byte vector values
+    OffHeapByteVectorValues vectorValues = OffHeapByteVectorValues.load(
+        fieldEntry.ordToDocVectorValues, fieldEntry.vectorEncoding, fieldEntry.dimension,
+        fieldEntry.vectorDataOffset, fieldEntry.vectorDataLength, vectorData);
+    RandomVectorScorer scorer = RandomVectorScorer.createBytes(vectorValues,
+        fieldEntry.similarityFunction, target);
+    HnswGraphSearcher.search(scorer,
         new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
-        getGraph(fieldEntry),
-        vectorValues.getAcceptOrds(acceptDocs));
+        getGraph(fieldEntry), vectorValues.getAcceptOrds(acceptDocs));
   }
 
   /**
@@ -365,8 +304,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
   static class FieldEntry implements Accountable {
 
-    private static final long SHALLOW_SIZE =
-        RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(
+        FieldEntry.class);
     final VectorSimilarityFunction similarityFunction;
     final VectorEncoding vectorEncoding;
     final long vectorDataOffset;
@@ -389,11 +328,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     // docId
     OrdToDocDISIReaderConfiguration ordToDocVectorValues;
 
-    FieldEntry(
-        IndexInput input,
-        VectorEncoding vectorEncoding,
-        VectorSimilarityFunction similarityFunction)
-        throws IOException {
+    FieldEntry(IndexInput input, VectorEncoding vectorEncoding,
+        VectorSimilarityFunction similarityFunction) throws IOException {
       this.similarityFunction = similarityFunction;
       this.vectorEncoding = vectorEncoding;
       vectorDataOffset = input.readVLong();
@@ -442,10 +378,9 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
     @Override
     public long ramBytesUsed() {
-      return SHALLOW_SIZE
-          + Arrays.stream(nodesByLevel).mapToLong(nodes -> RamUsageEstimator.sizeOf(nodes)).sum()
-          + RamUsageEstimator.sizeOf(ordToDocVectorValues)
-          + RamUsageEstimator.sizeOf(offsetsMeta);
+      return SHALLOW_SIZE + Arrays.stream(nodesByLevel)
+          .mapToLong(nodes -> RamUsageEstimator.sizeOf(nodes)).sum() + RamUsageEstimator.sizeOf(
+          ordToDocVectorValues) + RamUsageEstimator.sizeOf(offsetsMeta);
     }
   }
 
@@ -470,18 +405,18 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     private int[] currentNeighborsBuffer;
 
     OffHeapHnswGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
-      this.dataIn =
-          vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
+      this.dataIn = vectorIndex.slice("graph-data", entry.vectorIndexOffset,
+          entry.vectorIndexLength);
       this.nodesByLevel = entry.nodesByLevel;
       this.numLevels = entry.numLevels;
       this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
       this.size = entry.size();
       this.dimensions = entry.dimension;
       this.encoding = entry.vectorEncoding;
-      final RandomAccessInput addressesData =
-          vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
-      this.graphLevelNodeOffsets =
-          DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
+      final RandomAccessInput addressesData = vectorIndex.randomAccessSlice(entry.offsetsOffset,
+          entry.offsetsLength);
+      this.graphLevelNodeOffsets = DirectMonotonicReader.getInstance(entry.offsetsMeta,
+          addressesData);
       this.currentNeighborsBuffer = new int[entry.M * 2];
       graphLevelNodeIndexOffsets = new long[numLevels];
       graphLevelNodeIndexOffsets[0] = 0;
@@ -494,10 +429,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
     @Override
     public void seek(int level, int targetOrd) throws IOException {
-      int targetIndex =
-          level == 0
-              ? targetOrd
-              : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, targetOrd);
+      int targetIndex = level == 0 ? targetOrd
+          : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, targetOrd);
       assert targetIndex >= 0;
       // unsafe; no bounds checking
 
@@ -551,6 +484,74 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
         return new ArrayNodesIterator(size());
       } else {
         return new ArrayNodesIterator(nodesByLevel[level], nodesByLevel[level].length);
+      }
+    }
+  }
+
+  private static class InGraphOffHeapFloatScorer {
+
+    final IndexInput dataIn;
+    final int[][] nodesByLevel;
+    final int numLevels;
+    final int entryNode;
+    final int size;
+    final int dimensions;
+    final VectorEncoding encoding;
+    private final DirectMonotonicReader graphLevelNodeOffsets;
+    private final long[] graphLevelNodeIndexOffsets;
+    private final VectorSimilarityFunction similarityFunction;
+
+    InGraphOffHeapFloatScorer(FieldEntry entry, IndexInput vectorIndex,
+        VectorSimilarityFunction similarityFunction) throws IOException {
+      this.dataIn = vectorIndex.slice("graph-data", entry.vectorIndexOffset,
+          entry.vectorIndexLength);
+      this.nodesByLevel = entry.nodesByLevel;
+      this.numLevels = entry.numLevels;
+      this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
+      this.size = entry.size();
+      this.dimensions = entry.dimension;
+      this.encoding = entry.vectorEncoding;
+      final RandomAccessInput addressesData = vectorIndex.randomAccessSlice(entry.offsetsOffset,
+          entry.offsetsLength);
+      this.graphLevelNodeOffsets = DirectMonotonicReader.getInstance(entry.offsetsMeta,
+          addressesData);
+      graphLevelNodeIndexOffsets = new long[numLevels];
+      graphLevelNodeIndexOffsets[0] = 0;
+      for (int i = 1; i < numLevels; i++) {
+        // nodesByLevel is `null` for the zeroth level as we know its size
+        int nodeCount = nodesByLevel[i - 1] == null ? size : nodesByLevel[i - 1].length;
+        graphLevelNodeIndexOffsets[i] = graphLevelNodeIndexOffsets[i - 1] + nodeCount;
+      }
+      this.similarityFunction = similarityFunction;
+    }
+
+    public Scorer scorer(float[] query) {
+      return new Scorer(query);
+    }
+
+    private class Scorer implements RandomVectorScorer {
+
+      private final float[] query;
+
+      Scorer(float[] query) {
+        this.query = query;
+      }
+
+      @Override
+      public float score(int level, int node) throws IOException {
+        int targetIndex = level == 0 ? node
+            : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, node);
+        assert targetIndex >= 0;
+        // unsafe; no bounds checking
+
+        var targetOffset = graphLevelNodeOffsets.get(
+            targetIndex + graphLevelNodeIndexOffsets[level]);
+        dataIn.seek(targetOffset);
+
+        var vector = new float[dimensions];
+        dataIn.readFloats(vector, 0, dimensions);
+
+        return similarityFunction.compare(query, vector);
       }
     }
   }

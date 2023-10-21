@@ -86,7 +86,7 @@ public class NeighborArray {
    * @return indexes of newly sorted (unchecked) nodes, in ascending order, or null if the array is
    *     already fully sorted
    */
-  public int[] sort(RandomVectorScorer scorer) throws IOException {
+  public int[] sort(RandomVectorScorer scorer, int level) throws IOException {
     if (size == sortedNodeSize) {
       // all nodes checked and sorted
       return null;
@@ -95,7 +95,7 @@ public class NeighborArray {
     int[] uncheckedIndexes = new int[size - sortedNodeSize];
     int count = 0;
     while (sortedNodeSize != size) {
-      uncheckedIndexes[count] = insertSortedInternal(scorer); // sortedNodeSize is increased inside
+      uncheckedIndexes[count] = insertSortedInternal(scorer, level); // sortedNodeSize is increased inside
       for (int i = 0; i < count; i++) {
         if (uncheckedIndexes[i] >= uncheckedIndexes[count]) {
           // the previous inserted nodes has been shifted
@@ -109,13 +109,13 @@ public class NeighborArray {
   }
 
   /** insert the first unsorted node into its sorted position */
-  private int insertSortedInternal(RandomVectorScorer scorer) throws IOException {
+  private int insertSortedInternal(RandomVectorScorer scorer, int level) throws IOException {
     assert sortedNodeSize < size : "Call this method only when there's unsorted node";
     int tmpNode = node[sortedNodeSize];
     float tmpScore = score[sortedNodeSize];
 
     if (Float.isNaN(tmpScore)) {
-      tmpScore = scorer.score(tmpNode);
+      tmpScore = scorer.score(level, tmpNode);
     }
 
     int insertionPoint =
@@ -135,7 +135,7 @@ public class NeighborArray {
   /** This method is for test only. */
   void insertSorted(int newNode, float newScore) throws IOException {
     addOutOfOrder(newNode, newScore);
-    insertSortedInternal(null);
+    insertSortedInternal(null, 0);
   }
 
   public int size() {

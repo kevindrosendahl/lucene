@@ -18,6 +18,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -147,38 +149,48 @@ public class TestVectorSandboxHnswVectorsFormat extends LuceneTestCase {
           }
         }
 
+//        var sandboxReader = DirectoryReader.open(sandboxDirectory);
+//        var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
+//        var sandboxPerFieldVectorReader = (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) sandboxLeafReader).getVectorReader();
+//        var sandboxVectorReader = (VectorSandboxHnswVectorsReader) sandboxPerFieldVectorReader.getFieldReader(
+//            "vector");
+//        var sandboxGraph = sandboxVectorReader.getGraph("vector");
+//
+//        var lucene95Reader = DirectoryReader.open(lucene95Directory);
+//        var lucene95LeafReader = lucene95Reader.leaves().get(0).reader();
+//        var lucene95PerFieldVectorReader = (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) lucene95LeafReader).getVectorReader();
+//        var lucene95VectorReader = (Lucene95HnswVectorsReader) lucene95PerFieldVectorReader.getFieldReader(
+//            "vector");
+//        var lucene95Graph = lucene95VectorReader.getGraph("vector");
+//
+//        lucene95Graph.seek(1, 4);
+//        var lucene95Neighbors = new ArrayList<Integer>();
+//        var lucene95Neighbor = lucene95Graph.nextNeighbor();
+//        while (lucene95Neighbor != DocIdSetIterator.NO_MORE_DOCS) {
+//          lucene95Neighbors.add(lucene95Neighbor);
+//          lucene95Neighbor = lucene95Graph.nextNeighbor();
+//        }
+//
+//        sandboxGraph.seek(1, 4);
+//        var sandboxNeighbors = new ArrayList<Integer>();
+//        var sandboxNeighbor = sandboxGraph.nextNeighbor();
+//        while (sandboxNeighbor != DocIdSetIterator.NO_MORE_DOCS) {
+//          sandboxNeighbors.add(sandboxNeighbor);
+//          sandboxNeighbor = sandboxGraph.nextNeighbor();
+//        }
+//
+//        System.out.println("lucene95Neighbors = " + lucene95Neighbors);
+//        System.out.println("sandboxNeighbors = " + sandboxNeighbors);
         var sandboxReader = DirectoryReader.open(sandboxDirectory);
-        var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
-        var sandboxPerFieldVectorReader = (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) sandboxLeafReader).getVectorReader();
-        var sandboxVectorReader = (VectorSandboxHnswVectorsReader) sandboxPerFieldVectorReader.getFieldReader(
-            "vector");
-        var sandboxGraph = sandboxVectorReader.getGraph("vector");
-
+        var sandboxSearcher = new IndexSearcher(sandboxReader);
         var lucene95Reader = DirectoryReader.open(lucene95Directory);
-        var lucene95LeafReader = lucene95Reader.leaves().get(0).reader();
-        var lucene95PerFieldVectorReader = (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) lucene95LeafReader).getVectorReader();
-        var lucene95VectorReader = (Lucene95HnswVectorsReader) lucene95PerFieldVectorReader.getFieldReader(
-            "vector");
-        var lucene95Graph = lucene95VectorReader.getGraph("vector");
+        var lucene95Searcher = new IndexSearcher(lucene95Reader);
 
-        lucene95Graph.seek(1, 4);
-        var lucene95Neighbors = new ArrayList<Integer>();
-        var lucene95Neighbor = lucene95Graph.nextNeighbor();
-        while (lucene95Neighbor != DocIdSetIterator.NO_MORE_DOCS) {
-          lucene95Neighbors.add(lucene95Neighbor);
-          lucene95Neighbor = lucene95Graph.nextNeighbor();
-        }
+        var query = new KnnFloatVectorQuery("vector", VECTORS[0], 5);
+        var sandboxResults = sandboxSearcher.search(query, 5);
+        var lucene95Results = lucene95Searcher.search(query, 5);
 
-        sandboxGraph.seek(1, 4);
-        var sandboxNeighbors = new ArrayList<Integer>();
-        var sandboxNeighbor = sandboxGraph.nextNeighbor();
-        while (sandboxNeighbor != DocIdSetIterator.NO_MORE_DOCS) {
-          sandboxNeighbors.add(sandboxNeighbor);
-          sandboxNeighbor = sandboxGraph.nextNeighbor();
-        }
-
-        System.out.println("lucene95Neighbors = " + lucene95Neighbors);
-        System.out.println("sandboxNeighbors = " + sandboxNeighbors);
+        System.out.println("lucene95Results = " + lucene95Results);
       }
     }
   }
