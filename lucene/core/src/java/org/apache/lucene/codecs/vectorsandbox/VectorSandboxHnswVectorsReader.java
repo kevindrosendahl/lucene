@@ -186,7 +186,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
         };
     long vectorBytes = Math.multiplyExact((long) dimension, byteSize);
     long numBytes = Math.multiplyExact(vectorBytes, fieldEntry.size);
-    if (numBytes != fieldEntry.vectorDataLength) {
+    // FIXME: remove vectors file completely
+    if (0 != fieldEntry.vectorDataLength) {
       throw new IllegalStateException(
           "Vector data length "
               + fieldEntry.vectorDataLength
@@ -376,6 +377,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     final int numLevels;
     final int dimension;
     final int size;
+    // for each level, the node ids in sorted order on that level
     final int[][] nodesByLevel;
     // for each level the start offsets in vectorIndex file from where to read neighbours
     final DirectMonotonicReader.Meta offsetsMeta;
@@ -457,6 +459,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
     final int numLevels;
     final int entryNode;
     final int size;
+    final int dimensions;
+    final VectorEncoding encoding;
     int arcCount;
     int arcUpTo;
     int arc;
@@ -472,6 +476,8 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
       this.numLevels = entry.numLevels;
       this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
       this.size = entry.size();
+      this.dimensions = entry.dimension;
+      this.encoding = entry.vectorEncoding;
       final RandomAccessInput addressesData =
           vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
       this.graphLevelNodeOffsets =
@@ -488,14 +494,18 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader imple
 
     @Override
     public void seek(int level, int targetOrd) throws IOException {
-      // FIXME: seek past vector here
       int targetIndex =
           level == 0
               ? targetOrd
               : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, targetOrd);
       assert targetIndex >= 0;
       // unsafe; no bounds checking
-      dataIn.seek(graphLevelNodeOffsets.get(targetIndex + graphLevelNodeIndexOffsets[level]));
+
+      // seek to the [vector | adjacency list] for this ordinal, then seek past the vector.
+      var targetOffset = graphLevelNodeOffsets.get(targetIndex + graphLevelNodeIndexOffsets[level]);
+      var vectorSize = this.dimensions * this.encoding.byteSize;
+      dataIn.seek(targetOffset + vectorSize);
+
       arcCount = dataIn.readVInt();
       if (arcCount > 0) {
         if (arcCount > currentNeighborsBuffer.length) {

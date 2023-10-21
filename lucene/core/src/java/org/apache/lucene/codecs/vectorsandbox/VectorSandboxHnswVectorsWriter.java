@@ -209,11 +209,9 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
       int[] sortedNodes = getSortedNodes(graph.getNodesOnLevel(level));
       offsets[level] = new int[sortedNodes.length];
       int nodeOffsetId = 0;
-      long offsetStart = vectorIndex.getFilePointer();
 
       for (int node : sortedNodes) {
-        var offset = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
-        offsets[level][nodeOffsetId++] = offset;
+        long offsetStart = vectorIndex.getFilePointer();
 
         // Write the full fidelity vector
         var vector = fieldData.vectors.get(node);
@@ -228,12 +226,17 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
           }
         }
 
-        // Encode neighbors as vints.
         NeighborArray neighbors = graph.getNeighbors(level, node);
         int size = neighbors.size();
+
+        // Write size in VInt as the neighbors list is typically small
+        vectorIndex.writeVInt(size);
+
+        // Encode neighbors as vints.
         int[] nnodes = neighbors.node();
         Arrays.sort(nnodes, 0, size);
 
+        // Convert neighbors to their deltas from the previous neighbor.
         for (int i = size - 1; i > 0; --i) {
           nnodes[i] -= nnodes[i - 1];
         }
@@ -244,6 +247,9 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
         if (encoding == VectorEncoding.FLOAT32) {
           vectorIndex.alignFilePointer(Float.BYTES);
         }
+
+        var offset = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+        offsets[level][nodeOffsetId++] = offset;
       }
     }
 

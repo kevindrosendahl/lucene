@@ -158,7 +158,7 @@ public final class VectorSandboxHnswVectorsFormat extends KnnVectorsFormat {
    * @param beamWidth the size of the queue maintained during graph construction.
    */
   public VectorSandboxHnswVectorsFormat(int maxConn, int beamWidth) {
-    super("Lucene95HnswVectorsFormat");
+    super("VectorSandboxHnswVectorsFormat");
     if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
       throw new IllegalArgumentException(
           "maxConn must be postive and less than or equal to"
