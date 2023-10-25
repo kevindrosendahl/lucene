@@ -147,7 +147,6 @@ public final class VectorUtil {
     return IMPL.dotProduct(a, aoffset, b, boffset, length);
   }
 
-
   public static void addInPlace(float[] v1, float[] v2) {
     IMPL.addInPlace(v1, v2);
   }

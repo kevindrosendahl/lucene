@@ -131,7 +131,7 @@ public class TestNeighborArray extends LuceneTestCase {
     neighbors.addOutOfOrder(7, 8);
     neighbors.addOutOfOrder(6, 7);
     neighbors.addOutOfOrder(4, 5);
-    int[] unchecked = neighbors.sort( null, 0);
+    int[] unchecked = neighbors.sort(null, 0);
     assertArrayEquals(new int[] {0, 1, 2, 3, 4, 5, 6}, unchecked);
     assertNodesEqual(new int[] {1, 2, 3, 4, 5, 6, 7}, neighbors);
     assertScoresEqual(new float[] {2, 3, 4, 5, 6, 7, 8}, neighbors);

@@ -70,7 +70,8 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
     segmentWriteState = state;
     String metaFileName =
         IndexFileNames.segmentFileName(
-            state.segmentInfo.name, state.segmentSuffix,
+            state.segmentInfo.name,
+            state.segmentSuffix,
             VectorSandboxHnswVectorsFormat.META_EXTENSION);
 
     String vectorDataFileName =
@@ -197,8 +198,9 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
 
     var encoding = fieldData.fieldInfo.getVectorEncoding();
     var vectorBuffer =
-        encoding == VectorEncoding.FLOAT32 ? ByteBuffer.allocate(fieldData.dim * Float.BYTES)
-            .order(ByteOrder.LITTLE_ENDIAN) : null;
+        encoding == VectorEncoding.FLOAT32
+            ? ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            : null;
 
     // offsets[level][nodeIdx] is the offset into the index file for that node in that level.
     // note that nodeIdx is not the ordinal, but rather that ordinal's position in the sorted
@@ -359,21 +361,20 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
         throws IOException {
       int dim = fieldInfo.getVectorDimension();
       return switch (fieldInfo.getVectorEncoding()) {
-        case BYTE -> new VectorSandboxHnswVectorsWriter.FieldWriter<byte[]>(fieldInfo, M, beamWidth,
-            infoStream) {
+        case BYTE -> new VectorSandboxHnswVectorsWriter.FieldWriter<byte[]>(
+            fieldInfo, M, beamWidth, infoStream) {
           @Override
           public byte[] copyValue(byte[] value) {
             return ArrayUtil.copyOfSubArray(value, 0, dim);
           }
         };
-        case FLOAT32 ->
-            new VectorSandboxHnswVectorsWriter.FieldWriter<float[]>(fieldInfo, M, beamWidth,
-                infoStream) {
-              @Override
-              public float[] copyValue(float[] value) {
-                return ArrayUtil.copyOfSubArray(value, 0, dim);
-              }
-            };
+        case FLOAT32 -> new VectorSandboxHnswVectorsWriter.FieldWriter<float[]>(
+            fieldInfo, M, beamWidth, infoStream) {
+          @Override
+          public float[] copyValue(float[] value) {
+            return ArrayUtil.copyOfSubArray(value, 0, dim);
+          }
+        };
       };
     }
 
@@ -430,10 +431,10 @@ public final class VectorSandboxHnswVectorsWriter extends KnnVectorsWriter {
       }
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
-          * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+              * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
           + (long) vectors.size()
-          * fieldInfo.getVectorDimension()
-          * fieldInfo.getVectorEncoding().byteSize
+              * fieldInfo.getVectorDimension()
+              * fieldInfo.getVectorEncoding().byteSize
           + hnswGraphBuilder.getGraph().ramBytesUsed();
     }
   }

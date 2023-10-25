@@ -141,9 +141,8 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
   }
 
   @Override
-  public float dotProduct(float[] v1, int v1offset, float[] v2, int v2offset, final int length)
-  {
-    //Common case first
+  public float dotProduct(float[] v1, int v1offset, float[] v2, int v2offset, final int length) {
+    // Common case first
     if (length >= FloatVector.SPECIES_PREFERRED.length())
       return dotProductPreferred(v1, v1offset, v2, v2offset, length);
 
@@ -151,15 +150,12 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
       return dotProduct64(v1, v1offset, v2, v2offset, length);
     else if (length < FloatVector.SPECIES_256.length())
       return dotProduct128(v1, v1offset, v2, v2offset, length);
-    else
-      return dotProduct256(v1, v1offset, v2, v2offset, length);
-
+    else return dotProduct256(v1, v1offset, v2, v2offset, length);
   }
 
   static float dotProduct64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_64.length())
-      return dot64(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_64.length()) return dot64(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_64.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_64);
@@ -175,16 +171,14 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(VectorOperators.ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
 
   static float dotProduct128(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_128.length())
-      return dot128(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_128.length()) return dot128(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_128.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_128);
@@ -200,17 +194,14 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(VectorOperators.ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
 
-
   static float dotProduct256(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_256.length())
-      return dot256(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_256.length()) return dot256(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_256.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_256);
@@ -226,8 +217,7 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(VectorOperators.ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
@@ -251,8 +241,7 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(VectorOperators.ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
@@ -536,8 +525,7 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     return res;
   }
 
-
-    // Binary functions, these all follow a general pattern like this:
+  // Binary functions, these all follow a general pattern like this:
   //
   //   short intermediate = a * b;
   //   int accumulator = (int)accumulator + (int)intermediate;

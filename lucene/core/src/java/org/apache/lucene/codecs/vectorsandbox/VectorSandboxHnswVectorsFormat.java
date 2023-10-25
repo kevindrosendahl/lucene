@@ -135,7 +135,8 @@ public final class VectorSandboxHnswVectorsFormat extends KnnVectorsFormat {
 
   /**
    * Controls how many of the nearest neighbor candidates are connected to the new node. Defaults to
-   * {@link VectorSandboxHnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more details.
+   * {@link VectorSandboxHnswVectorsFormat#DEFAULT_MAX_CONN}. See {@link HnswGraph} for more
+   * details.
    */
   private final int maxConn;
 

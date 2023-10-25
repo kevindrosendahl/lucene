@@ -49,8 +49,7 @@ public class OrdToDocDISIReaderConfiguration implements Accountable {
    *       values.
    *   <li>DocIds were encoded by {@link IndexedDISI#writeBitSet(DocIdSetIterator, IndexOutput,
    *       byte)}
-   *   <li>OrdToDoc was encoded by {@link DirectMonotonicWriter}, note
-   *       that only in sparse case
+   *   <li>OrdToDoc was encoded by {@link DirectMonotonicWriter}, note that only in sparse case
    * </ul>
    *
    * <p>Within the vectorData the format is as follows:
@@ -58,8 +57,7 @@ public class OrdToDocDISIReaderConfiguration implements Accountable {
    * <ul>
    *   <li>DocIds encoded by {@link IndexedDISI#writeBitSet(DocIdSetIterator, IndexOutput, byte)},
    *       note that only in sparse case
-   *   <li>OrdToDoc was encoded by {@link DirectMonotonicWriter}, note
-   *       that only in sparse case
+   *   <li>OrdToDoc was encoded by {@link DirectMonotonicWriter}, note that only in sparse case
    * </ul>
    *
    * @param outputMeta the outputMeta

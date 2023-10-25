@@ -31,8 +31,8 @@ import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /**
  * Builder for HNSW graph. See {@link HnswGraph} for a gloss on the algorithm and the meaning of the

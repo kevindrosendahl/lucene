@@ -25,8 +25,8 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
 /** Read the vector values from the index input. This supports both iterated and random access. */
 public abstract class OffHeapByteVectorValues extends ByteVectorValues
@@ -81,12 +81,12 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
       long vectorDataLength,
       IndexInput vectorData)
       throws IOException {
-    if (configuration.docsWithFieldOffset == -2 || vectorEncoding != VectorEncoding.BYTE) {
+    if (configuration.isEmpty() || vectorEncoding != VectorEncoding.BYTE) {
       return new EmptyOffHeapVectorValues(dimension);
     }
     IndexInput bytesSlice = vectorData.slice("vector-data", vectorDataOffset, vectorDataLength);
     int byteSize = dimension;
-    if (configuration.docsWithFieldOffset == -1) {
+    if (configuration.isDense()) {
       return new DenseOffHeapVectorValues(dimension, configuration.size, bytesSlice, byteSize);
     } else {
       return new SparseOffHeapVectorValues(
@@ -94,9 +94,13 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
     }
   }
 
-  abstract Bits getAcceptOrds(Bits acceptDocs);
+  public abstract Bits getAcceptOrds(Bits acceptDocs);
 
-  static class DenseOffHeapVectorValues extends OffHeapByteVectorValues {
+  /**
+   * Dense vector values that are stored off-heap. This is the most common case when every doc has a
+   * vector.
+   */
+  public static class DenseOffHeapVectorValues extends OffHeapByteVectorValues {
 
     private int doc = -1;
 
@@ -134,7 +138,7 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
     }
 
     @Override
-    Bits getAcceptOrds(Bits acceptDocs) {
+    public Bits getAcceptOrds(Bits acceptDocs) {
       return acceptDocs;
     }
   }
@@ -203,7 +207,7 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
     }
 
     @Override
-    Bits getAcceptOrds(Bits acceptDocs) {
+    public Bits getAcceptOrds(Bits acceptDocs) {
       if (acceptDocs == null) {
         return null;
       }
@@ -275,7 +279,7 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
     }
 
     @Override
-    Bits getAcceptOrds(Bits acceptDocs) {
+    public Bits getAcceptOrds(Bits acceptDocs) {
       return null;
     }
   }

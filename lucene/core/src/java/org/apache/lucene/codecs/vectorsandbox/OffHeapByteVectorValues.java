@@ -28,9 +28,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
-/**
- * Read the vector values from the index input. This supports both iterated and random access.
- */
+/** Read the vector values from the index input. This supports both iterated and random access. */
 public abstract class OffHeapByteVectorValues extends ByteVectorValues
     implements RandomAccessVectorValues<byte[]> {
 

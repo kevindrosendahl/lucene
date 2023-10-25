@@ -90,8 +90,7 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
   }
 
   @Override
-  public float dotProduct(float[] a, int aoffset, float[] b, int boffset, int length)
-  {
+  public float dotProduct(float[] a, int aoffset, float[] b, int boffset, int length) {
     float sum = 0f;
     for (int i = 0; i < length; i++) {
       sum += a[aoffset + i] * b[boffset + i];
@@ -139,6 +138,7 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
     }
   }
 
+  @Override
   public void subInPlace(float[] v1, float[] v2) {
     for (int i = 0; i < v1.length; i++) {
       v1[i] -= v2[i];

@@ -36,11 +36,11 @@ import org.apache.lucene.codecs.lucene90.Lucene90LiveDocsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90NormsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PointsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90SegmentInfoFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90TermVectorsFormat;
 import org.apache.lucene.codecs.lucene94.Lucene94FieldInfosFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99SegmentInfoFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -71,7 +71,7 @@ public class VectorSandboxCodec extends Codec {
 
   private final TermVectorsFormat vectorsFormat = new Lucene90TermVectorsFormat();
   private final FieldInfosFormat fieldInfosFormat = new Lucene94FieldInfosFormat();
-  private final SegmentInfoFormat segmentInfosFormat = new Lucene90SegmentInfoFormat();
+  private final SegmentInfoFormat segmentInfosFormat = new Lucene99SegmentInfoFormat();
   private final LiveDocsFormat liveDocsFormat = new Lucene90LiveDocsFormat();
   private final CompoundFormat compoundFormat = new Lucene90CompoundFormat();
   private final NormsFormat normsFormat = new Lucene90NormsFormat();
@@ -121,7 +121,7 @@ public class VectorSandboxCodec extends Codec {
         new Lucene90StoredFieldsFormat(Objects.requireNonNull(mode).storedMode);
     this.defaultPostingsFormat = new Lucene90PostingsFormat();
     this.defaultDVFormat = new Lucene90DocValuesFormat();
-    this.defaultKnnVectorsFormat = new Lucene95HnswVectorsFormat();
+    this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
   }
 
   @Override

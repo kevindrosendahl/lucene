@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxHnswVectorsFormat;
 
 /** Lucene Core. */
@@ -34,6 +34,8 @@ module org.apache.lucene.core {
   exports org.apache.lucene.codecs.lucene90;
   exports org.apache.lucene.codecs.lucene94;
   exports org.apache.lucene.codecs.lucene95;
+  exports org.apache.lucene.codecs.lucene99;
+  exports org.apache.lucene.codecs.vectorsandbox;
   exports org.apache.lucene.codecs.lucene90.blocktree;
   exports org.apache.lucene.codecs.lucene90.compressing;
   exports org.apache.lucene.codecs.perfield;
@@ -47,6 +49,7 @@ module org.apache.lucene.core {
   exports org.apache.lucene.util;
   exports org.apache.lucene.util.automaton;
   exports org.apache.lucene.util.bkd;
+  exports org.apache.lucene.util.clustering;
   exports org.apache.lucene.util.compress;
   exports org.apache.lucene.util.fst;
   exports org.apache.lucene.util.graph;
@@ -54,6 +57,8 @@ module org.apache.lucene.core {
   exports org.apache.lucene.util.hppc;
   exports org.apache.lucene.util.mutable;
   exports org.apache.lucene.util.packed;
+  exports org.apache.lucene.util.quantization;
+  exports org.apache.lucene.util.vectors;
 
   // Only export internal packages to the test framework.
   exports org.apache.lucene.internal.tests to
@@ -62,17 +67,16 @@ module org.apache.lucene.core {
   // Open certain packages for the test framework (ram usage tester).
   opens org.apache.lucene.document to
       org.apache.lucene.test_framework;
-  exports org.apache.lucene.util.vectors;
 
   provides org.apache.lucene.analysis.TokenizerFactory with
       org.apache.lucene.analysis.standard.StandardTokenizerFactory;
   provides org.apache.lucene.codecs.Codec with
-      Lucene95Codec;
+      Lucene99Codec;
   provides org.apache.lucene.codecs.DocValuesFormat with
       org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
   provides org.apache.lucene.codecs.KnnVectorsFormat with
-      Lucene95HnswVectorsFormat,
-      VectorSandboxHnswVectorsFormat;
+      VectorSandboxHnswVectorsFormat,
+      Lucene99HnswVectorsFormat;
   provides org.apache.lucene.codecs.PostingsFormat with
       org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
   provides org.apache.lucene.index.SortFieldProvider with

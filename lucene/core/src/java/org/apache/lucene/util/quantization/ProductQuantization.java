@@ -1,3 +1,19 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.lucene.util.quantization;
 
 import static java.lang.Math.min;
@@ -12,12 +28,16 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
 import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 
+/** ProductQuantization */
 public class ProductQuantization {
 
   // TODO: consider normalizing around the global centroid
-  public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M,
+  public static ProductQuantization compute(
+      RandomAccessVectorValues<float[]> ravv,
+      int M,
       VectorSimilarityFunction similarityFunction,
-      Random random) throws IOException {
+      Random random)
+      throws IOException {
     var trainingVectors = sampleTrainingVectors(ravv, MAX_PQ_TRAINING_SET_SIZE, random);
     var subvectorInfos = getSubvectorInfo(ravv.dimension(), M);
     var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, similarityFunction, random);
@@ -63,8 +83,8 @@ public class ProductQuantization {
     }
   }
 
-  private static List<float[]> sampleTrainingVectors(RandomAccessVectorValues<float[]> ravv,
-      int maxTrainingSize, Random random)
+  private static List<float[]> sampleTrainingVectors(
+      RandomAccessVectorValues<float[]> ravv, int maxTrainingSize, Random random)
       throws IOException {
     var sampleRate = min(1.0f, maxTrainingSize / (float) ravv.size());
     var vectors = new ArrayList<float[]>();
@@ -76,7 +96,9 @@ public class ProductQuantization {
     return vectors;
   }
 
-  private ProductQuantization(Codebook[] codebooks, SubvectorInfo[] subvectorInfos,
+  private ProductQuantization(
+      Codebook[] codebooks,
+      SubvectorInfo[] subvectorInfos,
       VectorSimilarityFunction similarityFunction) {
     this.codebooks = codebooks;
     this.M = codebooks.length;
@@ -98,8 +120,8 @@ public class ProductQuantization {
     float[] target = new float[this.decodedDimensionSize];
     for (int m = 0; m < M; m++) {
       float[] centroid = codebooks[m].centroid(Byte.toUnsignedInt(encoded[m]));
-      System.arraycopy(centroid, 0, target, this.subvectorInfos[m].offset,
-          this.subvectorInfos[m].size);
+      System.arraycopy(
+          centroid, 0, target, this.subvectorInfos[m].offset, this.subvectorInfos[m].size);
     }
     return target;
   }
@@ -110,8 +132,8 @@ public class ProductQuantization {
     return subvector;
   }
 
-  private static int closestCentroidIndex(float[] subvector, Codebook codebook,
-      VectorSimilarityFunction similarityFunction) {
+  private static int closestCentroidIndex(
+      float[] subvector, Codebook codebook, VectorSimilarityFunction similarityFunction) {
     int closestIndex = 0;
     float closestDistance = Float.MAX_VALUE;
 
@@ -126,19 +148,26 @@ public class ProductQuantization {
     return closestIndex;
   }
 
-  private static Codebook[] createCodebooks(List<float[]> vectors, int M,
-      SubvectorInfo[] subvectorInfos, VectorSimilarityFunction similarityFunction, Random random) {
+  private static Codebook[] createCodebooks(
+      List<float[]> vectors,
+      int M,
+      SubvectorInfo[] subvectorInfos,
+      VectorSimilarityFunction similarityFunction,
+      Random random) {
     return IntStream.range(0, M)
         .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos, similarityFunction, random))
         .map(Codebook::new)
         .toArray(Codebook[]::new);
   }
 
-  private static float[][] clusterSubvectors(List<float[]> vectors, int m,
-      SubvectorInfo[] subvectorInfos, VectorSimilarityFunction similarityFunction, Random random) {
-    float[][] subvectors = vectors.stream()
-        .map(v -> getSubVector(v, m, subvectorInfos))
-        .toArray(float[][]::new);
+  private static float[][] clusterSubvectors(
+      List<float[]> vectors,
+      int m,
+      SubvectorInfo[] subvectorInfos,
+      VectorSimilarityFunction similarityFunction,
+      Random random) {
+    float[][] subvectors =
+        vectors.stream().map(v -> getSubVector(v, m, subvectorInfos)).toArray(float[][]::new);
     var clusterer = new KMeansPlusPlusClusterer(similarityFunction, K_MEANS_ITERATIONS, random);
     return clusterer.cluster(subvectors, CLUSTERS);
   }
@@ -146,21 +175,19 @@ public class ProductQuantization {
   /**
    * Generates information about the division of a high-dimensional vector into subvectors. Each
    * subvector is described by its size and offset within the original vector.
+   *
    * <p>
-   * <li>Size: The number of dimensions in the subvector.</li>
-   * <li>Offset: The starting dimension in the original vector for this subvector.</li>
-   * </p>
-   * <p>
-   * When `M` is a factor of `dimensions`:
-   * <li>Each subvector will have an equal size of `dimensions / M`.</li>
-   * <li>Offsets will be [0, size, 2*size, ..., (M-1)*size].</li>
-   * </p>
-   * <p>
-   * When `M` is not a factor of `dimensions`:
-   * <li>The base size for each subvector is `dimensions /M</li>`.
-   * <li>A remainder of `dimensions % M` is distributed among the first few subvectors.</li>
-   * <li>Offsets will be calculated based on these sizes.</li>
-   * </p>
+   * <li>Size: The number of dimensions in the subvector.
+   * <li>Offset: The starting dimension in the original vector for this subvector.
+   *
+   *     <p>When `M` is a factor of `dimensions`:
+   * <li>Each subvector will have an equal size of `dimensions / M`.
+   * <li>Offsets will be [0, size, 2*size, ..., (M-1)*size].
+   *
+   *     <p>When `M` is not a factor of `dimensions`:
+   * <li>The base size for each subvector is `dimensions /M`.
+   * <li>A remainder of `dimensions % M` is distributed among the first few subvectors.
+   * <li>Offsets will be calculated based on these sizes.
    */
   private static SubvectorInfo[] getSubvectorInfo(int dimensions, int M) {
     SubvectorInfo[] subvectorInfos = new SubvectorInfo[M];
@@ -175,8 +202,8 @@ public class ProductQuantization {
     return subvectorInfos;
   }
 
-  private static float distance(float[] v1, float[] v2,
-      VectorSimilarityFunction similarityFunction) {
+  private static float distance(
+      float[] v1, float[] v2, VectorSimilarityFunction similarityFunction) {
     return 1 - similarityFunction.compare(v1, v2);
   }
 }
