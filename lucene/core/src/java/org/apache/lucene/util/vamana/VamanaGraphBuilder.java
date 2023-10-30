@@ -18,6 +18,10 @@
 package org.apache.lucene.util.vamana;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -240,11 +244,11 @@ public class VamanaGraphBuilder {
       throws IOException {
     // Select the best maxConnOnLevel neighbors of the new node, applying the diversity heuristic
     // candidate is scratch, which has the closest neighbors at the end
-    var selected = new FixedBitSet(maxConn);
-    var numSelected = 0;
+    var selected = new FixedBitSet(candidates.size());
+    List<Candidate> selectedCandidates = new ArrayList<>(maxConn);
 
-    for (float a = 1.0f; a < alpha + 1E-6 && numSelected < maxConn; a += 0.2f) {
-      for (int i = candidates.size() - 1; numSelected < maxConn && i >= 0; i--) {
+    for (float a = 1.0f; a < alpha + 1E-6 && selectedCandidates.size() < maxConn; a += 0.2f) {
+      for (int i = candidates.size() - 1; selectedCandidates.size() < maxConn && i >= 0; i--) {
         // compare each neighbor (in distance order) against the closer neighbors selected so far,
         // only adding it if it is closer to the target than to any of the other selected neighbors
         int cNode = candidates.node[i];
@@ -253,17 +257,27 @@ public class VamanaGraphBuilder {
         // FIXME: include alpha in diversity check
         if (diversityCheck(cNode, cScore, candidates, selected, a)) {
           selected.set(i);
-          numSelected++;
+          selectedCandidates.add(new Candidate(cNode, cScore));
         }
       }
     }
 
-    for (int i = selected.nextSetBit(0);
-        i != DocIdSetIterator.NO_MORE_DOCS;
-        i = selected.nextSetBit(i + 1)) {
-      int cNode = candidates.node[i];
-      float cScore = candidates.score[i];
-      neighbors.addInOrder(cNode, cScore);
+    Collections.sort(selectedCandidates, Comparator.reverseOrder());
+    for (var candidate : selectedCandidates) {
+      neighbors.addInOrder(candidate.node, candidate.score);
+    }
+  }
+
+  record Candidate(int node, float score) implements Comparable<Candidate> {
+
+    @Override
+    public int compareTo(Candidate o) {
+      var score = Float.compare(this.score, o.score);
+      if (score != 0) {
+        return score;
+      }
+
+      return Integer.compare(this.node, o.node);
     }
   }
 
@@ -295,12 +309,17 @@ public class VamanaGraphBuilder {
       int other = candidates.node[i];
       if (other == candidate) {
         // FIXME: explain this break
-        break;
+        return false;
       }
 
       float neighborSimilarity = scorer.score(candidates.node[i]);
       if (neighborSimilarity >= score * a) {
         return false;
+      }
+
+      // nextSetBit will assert if you're past the end, so check ourselves
+      if (i + 1 >= selected.length()) {
+        break;
       }
     }
 

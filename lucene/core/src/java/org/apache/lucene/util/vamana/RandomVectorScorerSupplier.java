@@ -41,7 +41,7 @@ public interface RandomVectorScorerSupplier {
    * RandomAccessVectorValues#copy}).
    *
    * @param vectors the underlying storage for vectors
-   * @param similarityFunction the similarity function to score vectors
+   * @param similarityFunction the score function to score vectors
    */
   static RandomVectorScorerSupplier createFloats(
       final RandomAccessVectorValues<float[]> vectors,
@@ -66,7 +66,7 @@ public interface RandomVectorScorerSupplier {
    * RandomAccessVectorValues#copy}).
    *
    * @param vectors the underlying storage for vectors
-   * @param similarityFunction the similarity function to score vectors
+   * @param similarityFunction the score function to score vectors
    */
   static RandomVectorScorerSupplier createBytes(
       final RandomAccessVectorValues<byte[]> vectors,

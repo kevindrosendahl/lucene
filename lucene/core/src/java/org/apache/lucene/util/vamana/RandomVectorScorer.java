@@ -40,7 +40,7 @@ public interface RandomVectorScorer {
    * RandomAccessVectorValues#copy}).
    *
    * @param vectors the underlying storage for vectors
-   * @param similarityFunction the similarity function to score vectors
+   * @param similarityFunction the score function to score vectors
    * @param query the actual query
    */
   static RandomVectorScorer createFloats(
@@ -66,7 +66,7 @@ public interface RandomVectorScorer {
    * RandomAccessVectorValues#copy}).
    *
    * @param vectors the underlying storage for vectors
-   * @param similarityFunction the similarity function to use to score vectors
+   * @param similarityFunction the score function to use to score vectors
    * @param query the actual query
    */
   static RandomVectorScorer createBytes(

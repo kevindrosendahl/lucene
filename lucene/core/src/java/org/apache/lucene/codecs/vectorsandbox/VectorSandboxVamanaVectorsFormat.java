@@ -159,11 +159,11 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   /**
    * Constructs a format using the given graph construction parameters.
    *
-   * @param maxConn the maximum number of connections to a node in the HNSW graph
+   * @param maxConn the maximum number of connections to a node in the Vamana graph
    * @param beamWidth the size of the queue maintained during graph construction.
    */
   public VectorSandboxVamanaVectorsFormat(int maxConn, int beamWidth, float alpha) {
-    super("VectorSandboxHnswVectorsFormat");
+    super("VectorSandboxVamanaVectorsFormat");
     if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
       throw new IllegalArgumentException(
           "maxConn must be postive and less than or equal to"

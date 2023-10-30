@@ -20,7 +20,6 @@ package org.apache.lucene.codecs.vectorsandbox;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.codecs.CodecUtil;
@@ -60,7 +59,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     implements VamanaGraphProvider {
 
   private static final long SHALLOW_SIZE =
-      RamUsageEstimator.shallowSizeOfInstance(VectorSandboxHnswVectorsFormat.class);
+      RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
   private final FieldInfos fieldInfos;
   private final Map<String, FieldEntry> fields = new HashMap<>();
@@ -76,14 +75,14 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           openDataInput(
               state,
               versionMeta,
-              VectorSandboxHnswVectorsFormat.VECTOR_DATA_EXTENSION,
-              VectorSandboxHnswVectorsFormat.VECTOR_DATA_CODEC_NAME);
+              VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION,
+              VectorSandboxVamanaVectorsFormat.VECTOR_DATA_CODEC_NAME);
       vectorIndex =
           openDataInput(
               state,
               versionMeta,
-              VectorSandboxHnswVectorsFormat.VECTOR_INDEX_EXTENSION,
-              VectorSandboxHnswVectorsFormat.VECTOR_INDEX_CODEC_NAME);
+              VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION,
+              VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
       success = true;
     } finally {
       if (success == false) {
@@ -97,7 +96,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            VectorSandboxHnswVectorsFormat.META_EXTENSION);
+            VectorSandboxVamanaVectorsFormat.META_EXTENSION);
     int versionMeta = -1;
     try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
       Throwable priorE = null;
@@ -105,9 +104,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         versionMeta =
             CodecUtil.checkIndexHeader(
                 meta,
-                VectorSandboxHnswVectorsFormat.META_CODEC_NAME,
-                VectorSandboxHnswVectorsFormat.VERSION_START,
-                VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
+                VectorSandboxVamanaVectorsFormat.META_CODEC_NAME,
+                VectorSandboxVamanaVectorsFormat.VERSION_START,
+                VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix);
         readFields(meta, state.fieldInfos);
@@ -132,8 +131,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           CodecUtil.checkIndexHeader(
               in,
               codecName,
-              VectorSandboxHnswVectorsFormat.VERSION_START,
-              VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
+              VectorSandboxVamanaVectorsFormat.VERSION_START,
+              VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
               state.segmentInfo.getId(),
               state.segmentSuffix);
       if (versionMeta != versionVectorData) {
@@ -371,11 +370,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     final long vectorIndexOffset;
     final long vectorIndexLength;
     final int M;
-    final int numLevels;
     final int dimension;
     final int size;
-    // for each level, the node ids in sorted order on that level
-    final int[][] nodesByLevel;
     // for each level the start offsets in vectorIndex file from where to read neighbours
     final DirectMonotonicReader.Meta offsetsMeta;
     final long offsetsOffset;
@@ -404,26 +400,10 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       // read nodes by level
       M = input.readVInt();
-      numLevels = input.readVInt();
-      nodesByLevel = new int[numLevels][];
-      long numberOfOffsets = 0;
-      for (int level = 0; level < numLevels; level++) {
-        if (level > 0) {
-          int numNodesOnLevel = input.readVInt();
-          numberOfOffsets += numNodesOnLevel;
-          nodesByLevel[level] = new int[numNodesOnLevel];
-          nodesByLevel[level][0] = input.readVInt();
-          for (int i = 1; i < numNodesOnLevel; i++) {
-            nodesByLevel[level][i] = nodesByLevel[level][i - 1] + input.readVInt();
-          }
-        } else {
-          numberOfOffsets += size;
-        }
-      }
-      if (numberOfOffsets > 0) {
+      if (size > 0) {
         offsetsOffset = input.readLong();
         offsetsBlockShift = input.readVInt();
-        offsetsMeta = DirectMonotonicReader.loadMeta(input, numberOfOffsets, offsetsBlockShift);
+        offsetsMeta = DirectMonotonicReader.loadMeta(input, size, offsetsBlockShift);
         offsetsLength = input.readLong();
       } else {
         offsetsOffset = 0;
@@ -440,7 +420,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     @Override
     public long ramBytesUsed() {
       return SHALLOW_SIZE
-          + Arrays.stream(nodesByLevel).mapToLong(nodes -> RamUsageEstimator.sizeOf(nodes)).sum()
           + RamUsageEstimator.sizeOf(ordToDocVectorValues)
           + RamUsageEstimator.sizeOf(offsetsMeta);
     }
@@ -529,14 +508,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private static class InGraphOffHeapFloatScorer {
 
     final IndexInput dataIn;
-    final int[][] nodesByLevel;
-    final int numLevels;
     final int entryNode;
     final int size;
     final int dimensions;
     final VectorEncoding encoding;
     private final DirectMonotonicReader graphLevelNodeOffsets;
-    private final long[] graphLevelNodeIndexOffsets;
     private final VectorSimilarityFunction similarityFunction;
 
     InGraphOffHeapFloatScorer(
@@ -544,9 +520,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         throws IOException {
       this.dataIn =
           vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
-      this.nodesByLevel = entry.nodesByLevel;
-      this.numLevels = entry.numLevels;
-      this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
+      this.entryNode = 0;
       this.size = entry.size();
       this.dimensions = entry.dimension;
       this.encoding = entry.vectorEncoding;
@@ -554,13 +528,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
       this.graphLevelNodeOffsets =
           DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
-      graphLevelNodeIndexOffsets = new long[numLevels];
-      graphLevelNodeIndexOffsets[0] = 0;
-      for (int i = 1; i < numLevels; i++) {
-        // nodesByLevel is `null` for the zeroth level as we know its size
-        int nodeCount = nodesByLevel[i - 1] == null ? size : nodesByLevel[i - 1].length;
-        graphLevelNodeIndexOffsets[i] = graphLevelNodeIndexOffsets[i - 1] + nodeCount;
-      }
       this.similarityFunction = similarityFunction;
     }
 
@@ -580,7 +547,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       public float score(int node) throws IOException {
         // unsafe; no bounds checking
 
-        var targetOffset = graphLevelNodeOffsets.get(node + graphLevelNodeIndexOffsets[0]);
+        var targetOffset = graphLevelNodeOffsets.get(node);
         dataIn.seek(targetOffset);
 
         var vector = new float[dimensions];

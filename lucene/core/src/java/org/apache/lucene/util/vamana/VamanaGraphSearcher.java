@@ -218,7 +218,7 @@ public class VamanaGraphSearcher {
       }
     }
 
-    // A bound that holds the minimum similarity to the query vector that a candidate vector must
+    // A bound that holds the minimum score to the query vector that a candidate vector must
     // have to be considered.
     float minAcceptedSimilarity = results.minCompetitiveSimilarity();
     while (candidates.size() > 0 && results.earlyTerminated() == false) {

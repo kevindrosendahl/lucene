@@ -17,7 +17,7 @@
 
 package org.apache.lucene.codecs.vectorsandbox;
 
-import static org.apache.lucene.codecs.vectorsandbox.VectorSandboxHnswVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -75,19 +75,19 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            VectorSandboxHnswVectorsFormat.META_EXTENSION);
+            VectorSandboxVamanaVectorsFormat.META_EXTENSION);
 
     String vectorDataFileName =
         IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            VectorSandboxHnswVectorsFormat.VECTOR_DATA_EXTENSION);
+            VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION);
 
     String indexDataFileName =
         IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
-            VectorSandboxHnswVectorsFormat.VECTOR_INDEX_EXTENSION);
+            VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION);
     boolean success = false;
     try {
       meta = state.directory.createOutput(metaFileName, state.context);
@@ -96,20 +96,20 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
       CodecUtil.writeIndexHeader(
           meta,
-          VectorSandboxHnswVectorsFormat.META_CODEC_NAME,
-          VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
+          VectorSandboxVamanaVectorsFormat.META_CODEC_NAME,
+          VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
           state.segmentInfo.getId(),
           state.segmentSuffix);
       CodecUtil.writeIndexHeader(
           vectorData,
-          VectorSandboxHnswVectorsFormat.VECTOR_DATA_CODEC_NAME,
-          VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
+          VectorSandboxVamanaVectorsFormat.VECTOR_DATA_CODEC_NAME,
+          VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
           state.segmentInfo.getId(),
           state.segmentSuffix);
       CodecUtil.writeIndexHeader(
           vectorIndex,
-          VectorSandboxHnswVectorsFormat.VECTOR_INDEX_CODEC_NAME,
-          VectorSandboxHnswVectorsFormat.VERSION_CURRENT,
+          VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME,
+          VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
           state.segmentInfo.getId(),
           state.segmentSuffix);
       success = true;
