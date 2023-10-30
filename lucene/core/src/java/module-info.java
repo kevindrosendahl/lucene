@@ -18,6 +18,7 @@
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxHnswVectorsFormat;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 
 /** Lucene Core. */
 @SuppressWarnings("module") // the test framework is compiled after the core...
@@ -58,6 +59,7 @@ module org.apache.lucene.core {
   exports org.apache.lucene.util.mutable;
   exports org.apache.lucene.util.packed;
   exports org.apache.lucene.util.quantization;
+  exports org.apache.lucene.util.vamana;
   exports org.apache.lucene.util.vectors;
 
   // Only export internal packages to the test framework.
@@ -76,6 +78,7 @@ module org.apache.lucene.core {
       org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
   provides org.apache.lucene.codecs.KnnVectorsFormat with
       VectorSandboxHnswVectorsFormat,
+      VectorSandboxVamanaVectorsFormat,
       Lucene99HnswVectorsFormat;
   provides org.apache.lucene.codecs.PostingsFormat with
       org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;

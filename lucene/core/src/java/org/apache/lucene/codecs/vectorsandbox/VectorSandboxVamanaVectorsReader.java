@@ -24,8 +24,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.HnswGraphProvider;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.VamanaGraphProvider;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
@@ -45,19 +45,19 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.hnsw.HnswGraph;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
+import org.apache.lucene.util.vamana.RandomVectorScorer;
+import org.apache.lucene.util.vamana.VamanaGraph;
+import org.apache.lucene.util.vamana.VamanaGraphSearcher;
 
 /**
  * Reads vectors from the index segments along with index data structures supporting KNN search.
  *
  * @lucene.experimental
  */
-public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
-    implements HnswGraphProvider {
+public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
+    implements VamanaGraphProvider {
 
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxHnswVectorsFormat.class);
@@ -67,7 +67,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
 
-  VectorSandboxHnswVectorsReader(SegmentReadState state) throws IOException {
+  VectorSandboxVamanaVectorsReader(SegmentReadState state) throws IOException {
     this.fieldInfos = state.fieldInfos;
     int versionMeta = readMetadata(state);
     boolean success = false;
@@ -229,7 +229,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
 
   @Override
   public long ramBytesUsed() {
-    return VectorSandboxHnswVectorsReader.SHALLOW_SIZE
+    return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
             fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
@@ -298,7 +298,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
     var scorer =
         new InGraphOffHeapFloatScorer(fieldEntry, vectorIndex, fieldEntry.similarityFunction)
             .scorer(target);
-    HnswGraphSearcher.search(
+    VamanaGraphSearcher.search(
         scorer,
         // FIXME: support translation
         new OrdinalTranslatedKnnCollector(knnCollector, ord -> ord),
@@ -329,7 +329,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
             vectorData);
     RandomVectorScorer scorer =
         RandomVectorScorer.createBytes(vectorValues, fieldEntry.similarityFunction, target);
-    HnswGraphSearcher.search(
+    VamanaGraphSearcher.search(
         scorer,
         new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
         getGraph(fieldEntry),
@@ -338,7 +338,7 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
 
   /** Get knn graph values; used for testing */
   @Override
-  public HnswGraph getGraph(String field) throws IOException {
+  public VamanaGraph getGraph(String field) throws IOException {
     FieldInfo info = fieldInfos.fieldInfo(field);
     if (info == null) {
       throw new IllegalArgumentException("No such field '" + field + "'");
@@ -347,12 +347,12 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
     if (entry != null && entry.vectorIndexLength > 0) {
       return getGraph(entry);
     } else {
-      return HnswGraph.EMPTY;
+      return VamanaGraph.EMPTY;
     }
   }
 
-  private HnswGraph getGraph(FieldEntry entry) throws IOException {
-    return new OffHeapHnswGraph(entry, vectorIndex);
+  private VamanaGraph getGraph(FieldEntry entry) throws IOException {
+    return new OffHeapVamanaGraph(entry, vectorIndex);
   }
 
   @Override
@@ -447,11 +447,9 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
   }
 
   /** Read the nearest-neighbors graph from the index input */
-  private static final class OffHeapHnswGraph extends HnswGraph {
+  private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
-    final int[][] nodesByLevel;
-    final int numLevels;
     final int entryNode;
     final int size;
     final int dimensions;
@@ -460,16 +458,13 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
     int arcUpTo;
     int arc;
     private final DirectMonotonicReader graphLevelNodeOffsets;
-    private final long[] graphLevelNodeIndexOffsets;
     // Allocated to be M*2 to track the current neighbors being explored
     private int[] currentNeighborsBuffer;
 
-    OffHeapHnswGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
+    OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
       this.dataIn =
           vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
-      this.nodesByLevel = entry.nodesByLevel;
-      this.numLevels = entry.numLevels;
-      this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
+      this.entryNode = 0;
       this.size = entry.size();
       this.dimensions = entry.dimension;
       this.encoding = entry.vectorEncoding;
@@ -478,26 +473,15 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
       this.graphLevelNodeOffsets =
           DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
       this.currentNeighborsBuffer = new int[entry.M * 2];
-      graphLevelNodeIndexOffsets = new long[numLevels];
-      graphLevelNodeIndexOffsets[0] = 0;
-      for (int i = 1; i < numLevels; i++) {
-        // nodesByLevel is `null` for the zeroth level as we know its size
-        int nodeCount = nodesByLevel[i - 1] == null ? size : nodesByLevel[i - 1].length;
-        graphLevelNodeIndexOffsets[i] = graphLevelNodeIndexOffsets[i - 1] + nodeCount;
-      }
     }
 
     @Override
-    public void seek(int level, int targetOrd) throws IOException {
-      int targetIndex =
-          level == 0
-              ? targetOrd
-              : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, targetOrd);
-      assert targetIndex >= 0;
+    public void seek(int targetOrd) throws IOException {
+      assert targetOrd >= 0;
       // unsafe; no bounds checking
 
       // seek to the [vector | adjacency list] for this ordinal, then seek past the vector.
-      var targetOffset = graphLevelNodeOffsets.get(targetIndex + graphLevelNodeIndexOffsets[level]);
+      var targetOffset = graphLevelNodeOffsets.get(targetOrd);
       var vectorSize = this.dimensions * this.encoding.byteSize;
       dataIn.seek(targetOffset + vectorSize);
 
@@ -531,22 +515,13 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
     }
 
     @Override
-    public int numLevels() throws IOException {
-      return numLevels;
-    }
-
-    @Override
     public int entryNode() throws IOException {
       return entryNode;
     }
 
     @Override
-    public NodesIterator getNodesOnLevel(int level) {
-      if (level == 0) {
-        return new ArrayNodesIterator(size());
-      } else {
-        return new ArrayNodesIterator(nodesByLevel[level], nodesByLevel[level].length);
-      }
+    public NodesIterator getNodes() {
+      return new ArrayNodesIterator(size());
     }
   }
 

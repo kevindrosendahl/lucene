@@ -27,6 +27,7 @@ import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 import org.apache.lucene.index.FloatVectorValues;
 
+/** The vamana graph. */
 public abstract class VamanaGraph {
 
   /** Sole constructor */

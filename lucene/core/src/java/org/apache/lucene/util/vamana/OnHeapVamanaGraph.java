@@ -36,8 +36,6 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
   // the internal graph representation
   // e.g. graph[1] is all the neighbours of node 1
   private NeighborArray[] graph;
-  private int
-      lastFreezeSize; // remember the size we are at last time to freeze the graph and generate
   // levelToNodes
   private int size; // graph size, which is number of nodes in level 0
   private int maxNodeId;

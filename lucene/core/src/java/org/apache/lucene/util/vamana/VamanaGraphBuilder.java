@@ -17,12 +17,9 @@
 
 package org.apache.lucene.util.vamana;
 
-import static java.lang.Math.log;
-
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.SplittableRandom;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
@@ -60,7 +57,6 @@ public class VamanaGraphBuilder {
   private final float alpha;
   private final NeighborArray scratch;
 
-  private final SplittableRandom random;
   private final RandomVectorScorerSupplier scorerSupplier;
   private final VamanaGraphSearcher graphSearcher;
   private final GraphBuilderKnnCollector beamCandidates;
@@ -140,7 +136,6 @@ public class VamanaGraphBuilder {
         Objects.requireNonNull(scorerSupplier, "scorer supplier must not be null");
     // normalization factor for level generation; currently not configurable
     this.alpha = alpha;
-    this.random = new SplittableRandom(seed);
     this.vamana = vamana;
     this.graphSearcher =
         new VamanaGraphSearcher(
@@ -366,14 +361,6 @@ public class VamanaGraphBuilder {
       }
     }
     return false;
-  }
-
-  private static int getRandomGraphLevel(double ml, SplittableRandom random) {
-    double randDouble;
-    do {
-      randDouble = random.nextDouble(); // avoid 0 value, as log(0) is undefined
-    } while (randDouble == 0.0);
-    return ((int) (-log(randDouble) * ml));
   }
 
   /**
