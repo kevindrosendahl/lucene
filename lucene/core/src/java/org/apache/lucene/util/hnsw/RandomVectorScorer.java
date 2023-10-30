@@ -29,7 +29,7 @@ public interface RandomVectorScorer {
    * @param node a random node in the graph
    * @return the computed score
    */
-  float score(int level, int node) throws IOException;
+  float score(int node) throws IOException;
 
   /**
    * Creates a default scorer for float vectors.
@@ -54,7 +54,7 @@ public interface RandomVectorScorer {
               + " differs from field dimension: "
               + vectors.dimension());
     }
-    return (level, node) -> similarityFunction.compare(query, vectors.vectorValue(node));
+    return (node) -> similarityFunction.compare(query, vectors.vectorValue(node));
   }
 
   /**
@@ -80,6 +80,6 @@ public interface RandomVectorScorer {
               + " differs from field dimension: "
               + vectors.dimension());
     }
-    return (level, node) -> similarityFunction.compare(query, vectors.vectorValue(node));
+    return (node) -> similarityFunction.compare(query, vectors.vectorValue(node));
   }
 }

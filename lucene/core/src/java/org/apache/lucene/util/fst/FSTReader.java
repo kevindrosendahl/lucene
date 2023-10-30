@@ -14,17 +14,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.lucene.util.fst;
 
-package org.apache.lucene.util.hnsw;
+import java.io.IOException;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.Accountable;
 
-import java.io.Closeable;
+/** Abstraction for reading bytes necessary for FST. */
+public interface FSTReader extends Accountable {
 
-/**
- * A supplier that creates {@link RandomVectorScorer} from an ordinal. Caller should be sure to
- * close after use
- *
- * <p>NOTE: the {@link #copy()} returned {@link RandomVectorScorerSupplier} is not necessarily
- * closeable
- */
-public interface CloseableRandomVectorScorerSupplier
-    extends Closeable, RandomVectorScorerSupplier {}
+  /**
+   * The raw size in bytes of the FST
+   *
+   * @return the FST size
+   */
+  long size();
+
+  /**
+   * Get the reverse BytesReader for this FST
+   *
+   * @return the reverse BytesReader
+   */
+  FST.BytesReader getReverseBytesReader();
+
+  /**
+   * Write this FST to another DataOutput
+   *
+   * @param out the DataOutput
+   * @throws IOException if exception occurred during writing
+   */
+  void writeTo(DataOutput out) throws IOException;
+}
