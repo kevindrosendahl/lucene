@@ -193,6 +193,7 @@ public class VamanaGraphBuilder {
     int[] eps = new int[] {vamana.entryNode()};
 
     GraphBuilderKnnCollector candidates = beamCandidates;
+    candidates.clear();
     graphSearcher.search(candidates, scorer, eps, vamana, null);
     vamana.addNode(node);
     addDiverseNeighbors(node, candidates);
@@ -288,7 +289,6 @@ public class VamanaGraphBuilder {
       neighbors.addInOrder(candidate.node, candidate.score);
     }
 
-    // FIXME: check if same as backlink
     // Link the selected nodes to the new node, and the new node to the selected nodes (again
     // applying diversity heuristic)
     int size = neighbors.size();
@@ -310,6 +310,10 @@ public class VamanaGraphBuilder {
 
     for (float a = 1.0f; a < alpha + 1E-6 && selectedCandidates.size() < maxConn; a += 0.2f) {
       for (int i = candidates.size() - 1; selectedCandidates.size() < maxConn && i >= 0; i--) {
+        if (selected.get(i)) {
+          continue;
+        }
+
         // compare each neighbor (in distance order) against the closer neighbors selected so far,
         // only adding it if it is closer to the target than to any of the other selected neighbors
         int cNode = candidates.node[i];
@@ -371,7 +375,7 @@ public class VamanaGraphBuilder {
       }
 
       float neighborSimilarity = scorer.score(candidates.node[i]);
-      if (neighborSimilarity >= score * a) {
+      if (neighborSimilarity > score * a) {
         return false;
       }
 
