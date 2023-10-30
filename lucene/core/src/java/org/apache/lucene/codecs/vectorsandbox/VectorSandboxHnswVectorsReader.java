@@ -602,16 +602,11 @@ public final class VectorSandboxHnswVectorsReader extends KnnVectorsReader
       }
 
       @Override
-      public float score(int level, int node) throws IOException {
-        int targetIndex =
-            level == 0
-                ? node
-                : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, node);
-        assert targetIndex >= 0;
+      public float score(int node) throws IOException {
         // unsafe; no bounds checking
 
         var targetOffset =
-            graphLevelNodeOffsets.get(targetIndex + graphLevelNodeIndexOffsets[level]);
+            graphLevelNodeOffsets.get(node + graphLevelNodeIndexOffsets[0]);
         dataIn.seek(targetOffset);
 
         var vector = new float[dimensions];
