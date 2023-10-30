@@ -23,9 +23,13 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.SplittableRandom;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
 
@@ -233,9 +237,10 @@ public class VamanaGraphBuilder {
     assert neighbors.size() == 0; // new node
     popToScratch(candidates);
     // FIXME: why M * 2?
-    int maxConnOnLevel = M * 2;
-    selectAndLinkDiverse(neighbors, scratch, maxConnOnLevel);
+    int maxConn = M * 2;
+    selectAndLinkDiverse(neighbors, scratch, maxConn);
 
+    // FIXME: check if same as backlink
     // Link the selected nodes to the new node, and the new node to the selected nodes (again
     // applying diversity heuristic)
     int size = neighbors.size();
@@ -243,27 +248,44 @@ public class VamanaGraphBuilder {
       int nbr = neighbors.node[i];
       NeighborArray nbrsOfNbr = vamana.getNeighbors(nbr);
       nbrsOfNbr.addOutOfOrder(node, neighbors.score[i]);
-      if (nbrsOfNbr.size() > maxConnOnLevel) {
+      if (nbrsOfNbr.size() > maxConn) {
         int indexToRemove = findWorstNonDiverse(nbrsOfNbr, nbr);
         nbrsOfNbr.removeIndex(indexToRemove);
       }
     }
   }
 
+  // FIXME: write second version that uses occlude_factor like DiskANN, or prove this is equivalent
   private void selectAndLinkDiverse(
-      NeighborArray neighbors, NeighborArray candidates, int maxConnOnLevel)
+      NeighborArray neighbors, NeighborArray candidates, int maxConn)
       throws IOException {
     // Select the best maxConnOnLevel neighbors of the new node, applying the diversity heuristic
-    for (int i = candidates.size() - 1; neighbors.size() < maxConnOnLevel && i >= 0; i--) {
-      // compare each neighbor (in distance order) against the closer neighbors selected so far,
-      // only adding it if it is closer to the target than to any of the other selected neighbors
-      int cNode = candidates.node[i];
-      float cScore = candidates.score[i];
-      assert cNode <= vamana.maxNodeId();
-      if (diversityCheck(cNode, cScore, neighbors)) {
-        neighbors.addInOrder(cNode, cScore);
+    // candidate is scratch, which has the closest neighbors at the end
+    var selected = new FixedBitSet(maxConn);
+    var numSelected = 0;
+
+    for (float a = 1.0f; a < alpha + 1E-6 && numSelected < maxConn; a += 0.2f) {
+      for (int i = candidates.size() - 1; numSelected < maxConn && i >= 0; i--) {
+        // compare each neighbor (in distance order) against the closer neighbors selected so far,
+        // only adding it if it is closer to the target than to any of the other selected neighbors
+        int cNode = candidates.node[i];
+        float cScore = candidates.score[i];
+        assert cNode <= vamana.maxNodeId();
+        // FIXME: include alpha in diversity check
+        if (diversityCheck(cNode, cScore, candidates, selected, a)) {
+          selected.set(i);
+          numSelected++;
+        }
       }
     }
+
+    for (int i = selected.nextSetBit(0); i != DocIdSetIterator.NO_MORE_DOCS;
+        i = selected.nextSetBit(i + 1)) {
+      int cNode = candidates.node[i];
+      float cScore = candidates.score[i];
+      neighbors.addInOrder(cNode, cScore);
+    }
+
   }
 
   private void popToScratch(GraphBuilderKnnCollector candidates) {
@@ -281,18 +303,27 @@ public class VamanaGraphBuilder {
    * @param candidate the vector of a new candidate neighbor of a node n
    * @param score     the score of the new candidate and node n, to be compared with scores of the
    *                  candidate and n's neighbors
-   * @param neighbors the neighbors selected so far
+   * @param selected  the neighbors selected so far
    * @return whether the candidate is diverse given the existing neighbors
    */
-  private boolean diversityCheck(int candidate, float score, NeighborArray neighbors)
+  private boolean diversityCheck(int candidate, float score, NeighborArray candidates,
+      BitSet selected, float a)
       throws IOException {
     RandomVectorScorer scorer = scorerSupplier.scorer(candidate);
-    for (int i = 0; i < neighbors.size(); i++) {
-      float neighborSimilarity = scorer.score(neighbors.node[i]);
-      if (neighborSimilarity >= score) {
+    for (int i = selected.nextSetBit(0); i != DocIdSetIterator.NO_MORE_DOCS;
+        i = selected.nextSetBit(i + 1)) {
+      int other = candidates.node[i];
+      if (other == candidate) {
+        // FIXME: explain this break
+        break;
+      }
+
+      float neighborSimilarity = scorer.score(candidates.node[i]);
+      if (neighborSimilarity >= score * a) {
         return false;
       }
     }
+
     return true;
   }
 

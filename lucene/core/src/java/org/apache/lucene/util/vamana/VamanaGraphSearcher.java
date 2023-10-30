@@ -154,7 +154,7 @@ public class VamanaGraphSearcher {
     int visitedCount = 1;
     prepareScratchState(size);
     int currentEp = graph.entryNode();
-    float currentScore = scorer.score(graph.numLevels() - 1, currentEp);
+    float currentScore = scorer.score(currentEp);
     boolean foundBetter;
     for (int level = graph.numLevels() - 1; level >= 1; level--) {
       foundBetter = true;
@@ -229,7 +229,7 @@ public class VamanaGraphSearcher {
       }
 
       int topCandidateNode = candidates.pop();
-      graphSeek(graph, level, topCandidateNode);
+      graphSeek(graph, topCandidateNode);
       int friendOrd;
       while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
@@ -240,7 +240,7 @@ public class VamanaGraphSearcher {
         if (results.earlyTerminated()) {
           break;
         }
-        float friendSimilarity = scorer.score(level, friendOrd);
+        float friendSimilarity = scorer.score(friendOrd);
         results.incVisitedCount(1);
         if (friendSimilarity >= minAcceptedSimilarity) {
           candidates.add(friendOrd, friendSimilarity);
@@ -264,16 +264,16 @@ public class VamanaGraphSearcher {
 
   /**
    * Seek a specific node in the given graph. The default implementation will just call {@link
-   * VamanaGraph#seek(int, int)}
+   * VamanaGraph#seek(int)}
    *
    * @throws IOException when seeking the graph
    */
-  void graphSeek(VamanaGraph graph, int level, int targetNode) throws IOException {
-    graph.seek(level, targetNode);
+  void graphSeek(VamanaGraph graph, int targetNode) throws IOException {
+    graph.seek(targetNode);
   }
 
   /**
-   * Get the next neighbor from the graph, you must call {@link #graphSeek(VamanaGraph, int, int)}
+   * Get the next neighbor from the graph, you must call {@link #graphSeek(VamanaGraph, int)}
    * before calling this method. The default implementation will just call {@link
    * VamanaGraph#nextNeighbor()}
    *
@@ -306,8 +306,8 @@ public class VamanaGraphSearcher {
     }
 
     @Override
-    void graphSeek(VamanaGraph graph, int level, int targetNode) {
-      cur = ((OnHeapVamanaGraph) graph).getNeighbors(level, targetNode);
+    void graphSeek(VamanaGraph graph, int targetNode) {
+      cur = ((OnHeapVamanaGraph) graph).getNeighbors(targetNode);
       upto = -1;
     }
 
