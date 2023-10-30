@@ -29,29 +29,22 @@ import org.apache.lucene.index.FloatVectorValues;
 
 public abstract class VamanaGraph {
 
-  /**
-   * Sole constructor
-   */
-  protected VamanaGraph() {
-  }
+  /** Sole constructor */
+  protected VamanaGraph() {}
 
   /**
-   * Move the pointer to exactly the given {@code target}. After this method returns, call
-   * {@link #nextNeighbor()} to return successive (ordered) connected node ordinals.
+   * Move the pointer to exactly the given {@code target}. After this method returns, call {@link
+   * #nextNeighbor()} to return successive (ordered) connected node ordinals.
    *
-   * @param target ordinal of a node in the graph, must be &ge; 0 and &lt;
-   *               {@link FloatVectorValues#size()}.
+   * @param target ordinal of a node in the graph, must be &ge; 0 and &lt; {@link
+   *     FloatVectorValues#size()}.
    */
   public abstract void seek(int target) throws IOException;
 
-  /**
-   * Returns the number of nodes in the graph
-   */
+  /** Returns the number of nodes in the graph */
   public abstract int size();
 
-  /**
-   * Returns max node id, inclusive, normally this value will be size - 1
-   */
+  /** Returns max node id, inclusive, normally this value will be size - 1 */
   public int maxNodeId() {
     return size() - 1;
   }
@@ -64,9 +57,7 @@ public abstract class VamanaGraph {
    */
   public abstract int nextNeighbor() throws IOException;
 
-  /**
-   * Returns graph's entry point on the top level *
-   */
+  /** Returns graph's entry point on the top level * */
   public abstract int entryNode() throws IOException;
 
   /**
@@ -77,9 +68,7 @@ public abstract class VamanaGraph {
    */
   public abstract NodesIterator getNodes() throws IOException;
 
-  /**
-   * Empty graph value
-   */
+  /** Empty graph value */
   public static VamanaGraph EMPTY =
       new VamanaGraph() {
 
@@ -89,8 +78,7 @@ public abstract class VamanaGraph {
         }
 
         @Override
-        public void seek(int target) {
-        }
+        public void seek(int target) {}
 
         @Override
         public int size() {
@@ -117,16 +105,12 @@ public abstract class VamanaGraph {
 
     protected final int size;
 
-    /**
-     * Constructor for iterator based on the size
-     */
+    /** Constructor for iterator based on the size */
     public NodesIterator(int size) {
       this.size = size;
     }
 
-    /**
-     * The number of elements in this iterator *
-     */
+    /** The number of elements in this iterator * */
     public int size() {
       return size;
     }
@@ -149,9 +133,7 @@ public abstract class VamanaGraph {
     }
   }
 
-  /**
-   * NodesIterator that accepts nodes as an integer array.
-   */
+  /** NodesIterator that accepts nodes as an integer array. */
   public static class ArrayNodesIterator extends NodesIterator {
 
     static NodesIterator EMPTY = new ArrayNodesIterator(0);
@@ -159,9 +141,7 @@ public abstract class VamanaGraph {
     private final int[] nodes;
     private int cur = 0;
 
-    /**
-     * Constructor for iterator based on integer array representing nodes
-     */
+    /** Constructor for iterator based on integer array representing nodes */
     public ArrayNodesIterator(int[] nodes, int size) {
       super(size);
       assert nodes != null;
@@ -169,9 +149,7 @@ public abstract class VamanaGraph {
       this.nodes = nodes;
     }
 
-    /**
-     * Constructor for iterator based on the size
-     */
+    /** Constructor for iterator based on the size */
     public ArrayNodesIterator(int size) {
       super(size);
       this.nodes = null;
@@ -212,16 +190,12 @@ public abstract class VamanaGraph {
     }
   }
 
-  /**
-   * Nodes iterator based on set representation of nodes.
-   */
+  /** Nodes iterator based on set representation of nodes. */
   public static class CollectionNodesIterator extends NodesIterator {
 
     Iterator<Integer> nodes;
 
-    /**
-     * Constructor for iterator based on collection representing nodes
-     */
+    /** Constructor for iterator based on collection representing nodes */
     public CollectionNodesIterator(Collection<Integer> nodes) {
       super(nodes.size());
       this.nodes = nodes.iterator();

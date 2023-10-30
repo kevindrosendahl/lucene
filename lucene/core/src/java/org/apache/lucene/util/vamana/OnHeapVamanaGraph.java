@@ -36,12 +36,14 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
   // the internal graph representation
   // e.g. graph[1] is all the neighbours of node 1
   private NeighborArray[] graph;
-  private int lastFreezeSize; // remember the size we are at last time to freeze the graph and generate
+  private int
+      lastFreezeSize; // remember the size we are at last time to freeze the graph and generate
   // levelToNodes
   private int size; // graph size, which is number of nodes in level 0
   private int maxNodeId;
   private final int nsize; // neighbour array size at zero level
-  private final boolean noGrowth; // if an initial size is passed in, we don't expect the graph to grow itself
+  private final boolean
+      noGrowth; // if an initial size is passed in, we don't expect the graph to grow itself
 
   // KnnGraphValues iterator members
   private int upto;
@@ -51,8 +53,8 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
    * ctor
    *
    * @param numNodes number of nodes that will be added to this graph, passing in -1 means unbounded
-   *                 while passing in a non-negative value will lock the whole graph and disable the
-   *                 graph from growing itself (you cannot add a node with has id >= numNodes)
+   *     while passing in a non-negative value will lock the whole graph and disable the graph from
+   *     growing itself (you cannot add a node with has id >= numNodes)
    */
   OnHeapVamanaGraph(int M, int numNodes) {
     this.entryNode = -1; // Entry node should be negative until a node is added
@@ -164,11 +166,14 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
   @Override
   public long ramBytesUsed() {
     long neighborArrayBytes0 =
-        (long) nsize * (Integer.BYTES + Float.BYTES) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
-            + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2L + Integer.BYTES * 3;
+        (long) nsize * (Integer.BYTES + Float.BYTES)
+            + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER
+            + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2L
+            + Integer.BYTES * 3;
     long total = 0;
-    total += size * (neighborArrayBytes0 + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
-        + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER; // for graph and level 0;
+    total +=
+        size * (neighborArrayBytes0 + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+            + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER; // for graph and level 0;
     total += 8 * Integer.BYTES; // all int fields
     total += RamUsageEstimator.NUM_BYTES_OBJECT_REF; // field: cur
     return total;

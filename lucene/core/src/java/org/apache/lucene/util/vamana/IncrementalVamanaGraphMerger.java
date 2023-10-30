@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.lucene.codecs.HnswGraphProvider;
 import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.VamanaGraphProvider;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
@@ -39,7 +40,7 @@ import org.apache.lucene.util.FixedBitSet;
  *
  * @lucene.experimental
  */
-public class IncrementalHnswGraphMerger {
+public class IncrementalVamanaGraphMerger {
 
   private KnnVectorsReader initReader;
   private MergeState.DocMap initDocMap;
@@ -48,16 +49,22 @@ public class IncrementalHnswGraphMerger {
   private final RandomVectorScorerSupplier scorerSupplier;
   private final int M;
   private final int beamWidth;
+  private final float alpha;
 
   /**
    * @param fieldInfo FieldInfo for the field being merged
    */
-  public IncrementalHnswGraphMerger(
-      FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth) {
+  public IncrementalVamanaGraphMerger(
+      FieldInfo fieldInfo,
+      RandomVectorScorerSupplier scorerSupplier,
+      int M,
+      int beamWidth,
+      float alpha) {
     this.fieldInfo = fieldInfo;
     this.scorerSupplier = scorerSupplier;
     this.M = M;
     this.beamWidth = beamWidth;
+    this.alpha = alpha;
   }
 
   /**
@@ -71,7 +78,7 @@ public class IncrementalHnswGraphMerger {
    * @return this
    * @throws IOException If an error occurs while reading from the merge state
    */
-  public IncrementalHnswGraphMerger addReader(
+  public IncrementalVamanaGraphMerger addReader(
       KnnVectorsReader reader, MergeState.DocMap docMap, Bits liveDocs) throws IOException {
     KnnVectorsReader currKnnVectorsReader = reader;
     if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader candidateReader) {
@@ -116,20 +123,23 @@ public class IncrementalHnswGraphMerger {
    * @return HnswGraphBuilder
    * @throws IOException If an error occurs while reading from the merge state
    */
-  public VamanaGraphBuilder createBuilder(DocIdSetIterator mergedVectorIterator) throws IOException {
+  public VamanaGraphBuilder createBuilder(DocIdSetIterator mergedVectorIterator)
+      throws IOException {
     if (initReader == null) {
-      return VamanaGraphBuilder.create(scorerSupplier, M, beamWidth, VamanaGraphBuilder.randSeed);
+      return VamanaGraphBuilder.create(
+          scorerSupplier, M, beamWidth, alpha, VamanaGraphBuilder.randSeed);
     }
 
-    VamanaGraph initializerGraph = ((HnswGraphProvider) initReader).getGraph(fieldInfo.name);
+    VamanaGraph initializerGraph = ((VamanaGraphProvider) initReader).getGraph(fieldInfo.name);
     final int numVectors = Math.toIntExact(mergedVectorIterator.cost());
 
     BitSet initializedNodes = new FixedBitSet(numVectors + 1);
     int[] oldToNewOrdinalMap = getNewOrdMapping(mergedVectorIterator, initializedNodes);
-    return InitializedHnswGraphBuilder.fromGraph(
+    return InitializedVamanaGraphBuilder.fromGraph(
         scorerSupplier,
         M,
         beamWidth,
+        alpha,
         VamanaGraphBuilder.randSeed,
         initializerGraph,
         oldToNewOrdinalMap,

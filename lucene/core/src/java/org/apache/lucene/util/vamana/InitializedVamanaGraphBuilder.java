@@ -28,7 +28,7 @@ import org.apache.lucene.util.BitSet;
  *
  * @lucene.experimental
  */
-public final class InitializedHnswGraphBuilder extends VamanaGraphBuilder {
+public final class InitializedVamanaGraphBuilder extends VamanaGraphBuilder {
 
   /**
    * Create a new HnswGraphBuilder that is initialized with the provided HnswGraph.
@@ -45,49 +45,51 @@ public final class InitializedHnswGraphBuilder extends VamanaGraphBuilder {
    * @return a new HnswGraphBuilder that is initialized with the provided HnswGraph
    * @throws IOException when reading the graph fails
    */
-  public static InitializedHnswGraphBuilder fromGraph(
+  public static InitializedVamanaGraphBuilder fromGraph(
       RandomVectorScorerSupplier scorerSupplier,
       int M,
       int beamWidth,
+      float alpha,
       long seed,
       VamanaGraph initializerGraph,
       int[] newOrdMap,
       BitSet initializedNodes,
       int totalNumberOfVectors)
       throws IOException {
-    OnHeapVamanaGraph hnsw = new OnHeapVamanaGraph(M, totalNumberOfVectors);
-    for (int level = initializerGraph.numLevels() - 1; level >= 0; level--) {
-      VamanaGraph.NodesIterator it = initializerGraph.getNodes(level);
-      while (it.hasNext()) {
-        int oldOrd = it.nextInt();
-        int newOrd = newOrdMap[oldOrd];
-        hnsw.addNode(level, newOrd);
-        NeighborArray newNeighbors = hnsw.getNeighbors(level, newOrd);
-        initializerGraph.seek(level, oldOrd);
-        for (int oldNeighbor = initializerGraph.nextNeighbor();
-            oldNeighbor != NO_MORE_DOCS;
-            oldNeighbor = initializerGraph.nextNeighbor()) {
-          int newNeighbor = newOrdMap[oldNeighbor];
-          // we will compute these scores later when we need to pop out the non-diverse nodes
-          newNeighbors.addOutOfOrder(newNeighbor, Float.NaN);
-        }
+    OnHeapVamanaGraph vamana = new OnHeapVamanaGraph(M, totalNumberOfVectors);
+
+    VamanaGraph.NodesIterator it = initializerGraph.getNodes();
+    while (it.hasNext()) {
+      int oldOrd = it.nextInt();
+      int newOrd = newOrdMap[oldOrd];
+      vamana.addNode(newOrd);
+      NeighborArray newNeighbors = vamana.getNeighbors(newOrd);
+      initializerGraph.seek(oldOrd);
+      for (int oldNeighbor = initializerGraph.nextNeighbor();
+          oldNeighbor != NO_MORE_DOCS;
+          oldNeighbor = initializerGraph.nextNeighbor()) {
+        int newNeighbor = newOrdMap[oldNeighbor];
+        // we will compute these scores later when we need to pop out the non-diverse nodes
+        newNeighbors.addOutOfOrder(newNeighbor, Float.NaN);
       }
     }
-    return new InitializedHnswGraphBuilder(
-        scorerSupplier, M, beamWidth, seed, hnsw, initializedNodes);
+
+    return new InitializedVamanaGraphBuilder(
+        scorerSupplier, M, beamWidth, alpha, seed, vamana, initializedNodes);
   }
 
   private final BitSet initializedNodes;
 
-  public InitializedHnswGraphBuilder(
+  public InitializedVamanaGraphBuilder(
       RandomVectorScorerSupplier scorerSupplier,
       int M,
       int beamWidth,
+      float alpha,
       long seed,
       OnHeapVamanaGraph initializedGraph,
       BitSet initializedNodes)
       throws IOException {
-    super(scorerSupplier, M, beamWidth, seed, initializedGraph);
+    super(scorerSupplier, M, beamWidth, alpha, seed, initializedGraph);
     this.initializedNodes = initializedNodes;
   }
 

@@ -95,8 +95,7 @@ public class NeighborArray {
     int[] uncheckedIndexes = new int[size - sortedNodeSize];
     int count = 0;
     while (sortedNodeSize != size) {
-      uncheckedIndexes[count] =
-          insertSortedInternal(scorer); // sortedNodeSize is increased inside
+      uncheckedIndexes[count] = insertSortedInternal(scorer); // sortedNodeSize is increased inside
       for (int i = 0; i < count; i++) {
         if (uncheckedIndexes[i] >= uncheckedIndexes[count]) {
           // the previous inserted nodes has been shifted
@@ -136,7 +135,7 @@ public class NeighborArray {
   /** This method is for test only. */
   void insertSorted(int newNode, float newScore) throws IOException {
     addOutOfOrder(newNode, newScore);
-    insertSortedInternal(null, 0);
+    insertSortedInternal(null);
   }
 
   public int size() {

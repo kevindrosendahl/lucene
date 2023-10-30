@@ -23,13 +23,11 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.SplittableRandom;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.InfoStream;
 
@@ -39,45 +37,33 @@ import org.apache.lucene.util.InfoStream;
  */
 public class VamanaGraphBuilder {
 
-  /**
-   * Default number of maximum connections per node
-   */
+  /** Default number of maximum connections per node */
   public static final int DEFAULT_MAX_CONN = 16;
 
   /**
-   * Default number of the size of the queue maintained while searching during a graph
-   * construction.
+   * Default number of the size of the queue maintained while searching during a graph construction.
    */
   public static final int DEFAULT_BEAM_WIDTH = 100;
 
   public static final float DEFAULT_ALPHA = 1.2f;
 
-  /**
-   * Default random seed for level generation *
-   */
+  /** Default random seed for level generation * */
   private static final long DEFAULT_RAND_SEED = 42;
 
-  /**
-   * A name for the HNSW component for the info-stream *
-   */
+  /** A name for the HNSW component for the info-stream * */
   public static final String VAMANA_COMPONENT = "VAMANA";
 
-  /**
-   * Random seed for level generation; public to expose for testing *
-   */
+  /** Random seed for level generation; public to expose for testing * */
   public static long randSeed = DEFAULT_RAND_SEED;
 
   private final int M; // max number of connections on upper layers
-  private final double ml;
   private final float alpha;
   private final NeighborArray scratch;
 
   private final SplittableRandom random;
   private final RandomVectorScorerSupplier scorerSupplier;
   private final VamanaGraphSearcher graphSearcher;
-  private final GraphBuilderKnnCollector entryCandidates; // for upper levels of graph search
-  private final GraphBuilderKnnCollector
-      beamCandidates; // for levels of graph where we add the node
+  private final GraphBuilderKnnCollector beamCandidates;
 
   protected final OnHeapVamanaGraph vamana;
 
@@ -90,7 +76,11 @@ public class VamanaGraphBuilder {
   }
 
   public static VamanaGraphBuilder create(
-      RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth, float alpha, long seed,
+      RandomVectorScorerSupplier scorerSupplier,
+      int M,
+      int beamWidth,
+      float alpha,
+      long seed,
       int graphSize)
       throws IOException {
     return new VamanaGraphBuilder(scorerSupplier, M, beamWidth, alpha, seed, graphSize);
@@ -101,16 +91,19 @@ public class VamanaGraphBuilder {
    * ordinals, using the given hyperparameter settings, and returns the resulting graph.
    *
    * @param scorerSupplier a supplier to create vector scorer from ordinals.
-   * @param M              – graph fanout parameter used to calculate the maximum number of
-   *                       connections a node can have – M on upper layers, and M * 2 on the lowest
-   *                       level.
-   * @param beamWidth      the size of the beam search to use when finding nearest neighbors.
-   * @param seed           the seed for a random number generator used during graph construction.
-   *                       Provide this to ensure repeatable construction.
-   * @param graphSize      size of graph, if unknown, pass in -1
+   * @param M – graph fanout parameter used to calculate the maximum number of connections a node
+   *     can have – M on upper layers, and M * 2 on the lowest level.
+   * @param beamWidth the size of the beam search to use when finding nearest neighbors.
+   * @param seed the seed for a random number generator used during graph construction. Provide this
+   *     to ensure repeatable construction.
+   * @param graphSize size of graph, if unknown, pass in -1
    */
   protected VamanaGraphBuilder(
-      RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth, float alpha, long seed,
+      RandomVectorScorerSupplier scorerSupplier,
+      int M,
+      int beamWidth,
+      float alpha,
+      long seed,
       int graphSize)
       throws IOException {
     this(scorerSupplier, M, beamWidth, alpha, seed, new OnHeapVamanaGraph(M, graphSize));
@@ -121,13 +114,12 @@ public class VamanaGraphBuilder {
    * ordinals, using the given hyperparameter settings, and returns the resulting graph.
    *
    * @param scorerSupplier a supplier to create vector scorer from ordinals.
-   * @param M              – graph fanout parameter used to calculate the maximum number of
-   *                       connections a node can have – M on upper layers, and M * 2 on the lowest
-   *                       level.
-   * @param beamWidth      the size of the beam search to use when finding nearest neighbors.
-   * @param seed           the seed for a random number generator used during graph construction.
-   *                       Provide this to ensure repeatable construction.
-   * @param vamana         the graph to build, can be previously initialized
+   * @param M – graph fanout parameter used to calculate the maximum number of connections a node
+   *     can have – M on upper layers, and M * 2 on the lowest level.
+   * @param beamWidth the size of the beam search to use when finding nearest neighbors.
+   * @param seed the seed for a random number generator used during graph construction. Provide this
+   *     to ensure repeatable construction.
+   * @param vamana the graph to build, can be previously initialized
    */
   protected VamanaGraphBuilder(
       RandomVectorScorerSupplier scorerSupplier,
@@ -147,7 +139,6 @@ public class VamanaGraphBuilder {
     this.scorerSupplier =
         Objects.requireNonNull(scorerSupplier, "scorer supplier must not be null");
     // normalization factor for level generation; currently not configurable
-    this.ml = M == 1 ? 1 : 1 / Math.log(1.0 * M);
     this.alpha = alpha;
     this.random = new SplittableRandom(seed);
     this.vamana = vamana;
@@ -156,7 +147,6 @@ public class VamanaGraphBuilder {
             new NeighborQueue(beamWidth, true), new FixedBitSet(this.getGraph().size()));
     // in scratch we store candidates in reverse order: worse candidates are first
     scratch = new NeighborArray(Math.max(beamWidth, M + 1), false);
-    entryCandidates = new GraphBuilderKnnCollector(1);
     beamCandidates = new GraphBuilderKnnCollector(beamWidth);
   }
 
@@ -173,9 +163,7 @@ public class VamanaGraphBuilder {
     return vamana;
   }
 
-  /**
-   * Set info-stream to output debugging information *
-   */
+  /** Set info-stream to output debugging information * */
   public void setInfoStream(InfoStream infoStream) {
     this.infoStream = infoStream;
   }
@@ -194,19 +182,16 @@ public class VamanaGraphBuilder {
     }
   }
 
-  /**
-   * Inserts a doc with vector value to the graph
-   */
+  /** Inserts a doc with vector value to the graph */
   public void addGraphNode(int node) throws IOException {
     RandomVectorScorer scorer = scorerSupplier.scorer(node);
-    final int nodeLevel = getRandomGraphLevel(ml, random);
 
     // If entrynode is -1, then this should finish without adding neighbors
     if (vamana.entryNode() == -1) {
       vamana.addNode(node);
       return;
     }
-    int[] eps = new int[]{vamana.entryNode()};
+    int[] eps = new int[] {vamana.entryNode()};
 
     GraphBuilderKnnCollector candidates = beamCandidates;
     graphSearcher.search(candidates, scorer, eps, vamana, null);
@@ -256,8 +241,7 @@ public class VamanaGraphBuilder {
   }
 
   // FIXME: write second version that uses occlude_factor like DiskANN, or prove this is equivalent
-  private void selectAndLinkDiverse(
-      NeighborArray neighbors, NeighborArray candidates, int maxConn)
+  private void selectAndLinkDiverse(NeighborArray neighbors, NeighborArray candidates, int maxConn)
       throws IOException {
     // Select the best maxConnOnLevel neighbors of the new node, applying the diversity heuristic
     // candidate is scratch, which has the closest neighbors at the end
@@ -279,13 +263,13 @@ public class VamanaGraphBuilder {
       }
     }
 
-    for (int i = selected.nextSetBit(0); i != DocIdSetIterator.NO_MORE_DOCS;
+    for (int i = selected.nextSetBit(0);
+        i != DocIdSetIterator.NO_MORE_DOCS;
         i = selected.nextSetBit(i + 1)) {
       int cNode = candidates.node[i];
       float cScore = candidates.score[i];
       neighbors.addInOrder(cNode, cScore);
     }
-
   }
 
   private void popToScratch(GraphBuilderKnnCollector candidates) {
@@ -301,16 +285,17 @@ public class VamanaGraphBuilder {
 
   /**
    * @param candidate the vector of a new candidate neighbor of a node n
-   * @param score     the score of the new candidate and node n, to be compared with scores of the
-   *                  candidate and n's neighbors
-   * @param selected  the neighbors selected so far
+   * @param score the score of the new candidate and node n, to be compared with scores of the
+   *     candidate and n's neighbors
+   * @param selected the neighbors selected so far
    * @return whether the candidate is diverse given the existing neighbors
    */
-  private boolean diversityCheck(int candidate, float score, NeighborArray candidates,
-      BitSet selected, float a)
+  private boolean diversityCheck(
+      int candidate, float score, NeighborArray candidates, BitSet selected, float a)
       throws IOException {
     RandomVectorScorer scorer = scorerSupplier.scorer(candidate);
-    for (int i = selected.nextSetBit(0); i != DocIdSetIterator.NO_MORE_DOCS;
+    for (int i = selected.nextSetBit(0);
+        i != DocIdSetIterator.NO_MORE_DOCS;
         i = selected.nextSetBit(i + 1)) {
       int other = candidates.node[i];
       if (other == candidate) {
@@ -331,8 +316,7 @@ public class VamanaGraphBuilder {
    * Find first non-diverse neighbour among the list of neighbors starting from the most distant
    * neighbours
    */
-  private int findWorstNonDiverse(NeighborArray neighbors, int nodeOrd)
-      throws IOException {
+  private int findWorstNonDiverse(NeighborArray neighbors, int nodeOrd) throws IOException {
     RandomVectorScorer scorer = scorerSupplier.scorer(nodeOrd);
     int[] uncheckedIndexes = neighbors.sort(scorer);
     if (uncheckedIndexes == null) {
@@ -356,10 +340,7 @@ public class VamanaGraphBuilder {
   }
 
   private boolean isWorstNonDiverse(
-      int candidateIndex,
-      NeighborArray neighbors,
-      int[] uncheckedIndexes,
-      int uncheckedCursor)
+      int candidateIndex, NeighborArray neighbors, int[] uncheckedIndexes, int uncheckedCursor)
       throws IOException {
     float minAcceptedSimilarity = neighbors.score[candidateIndex];
     RandomVectorScorer scorer = scorerSupplier.scorer(neighbors.node[candidateIndex]);

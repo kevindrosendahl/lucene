@@ -32,9 +32,10 @@ import org.apache.lucene.util.SparseFixedBitSet;
  * search algorithm, see {@link VamanaGraph}.
  */
 public class VamanaGraphSearcher {
+
   /**
-   * Scratch data structures that are used in each {@link #search} call. These can be expensive
-   * to allocate, so they're cleared and reused across calls.
+   * Scratch data structures that are used in each {@link #search} call. These can be expensive to
+   * allocate, so they're cleared and reused across calls.
    */
   private final NeighborQueue candidates;
 
@@ -83,7 +84,11 @@ public class VamanaGraphSearcher {
    * @return a set of collected vectors holding the nearest neighbors found
    */
   public static KnnCollector search(
-      RandomVectorScorer scorer, int topK, OnHeapVamanaGraph graph, Bits acceptOrds, int visitedLimit)
+      RandomVectorScorer scorer,
+      int topK,
+      OnHeapVamanaGraph graph,
+      Bits acceptOrds,
+      int visitedLimit)
       throws IOException {
     KnnCollector knnCollector = new TopKnnCollector(topK, visitedLimit);
     OnHeapVamanaGraphSearcher graphSearcher =
@@ -112,7 +117,7 @@ public class VamanaGraphSearcher {
       return;
     }
     knnCollector.incVisitedCount(numVisited);
-    graphSearcher.search(knnCollector, scorer, 0, new int[] {ep}, graph, acceptOrds);
+    graphSearcher.search(knnCollector, scorer, new int[] {ep}, graph, acceptOrds);
   }
 
   /**
@@ -129,8 +134,7 @@ public class VamanaGraphSearcher {
    */
   public VamanaGraphBuilder.GraphBuilderKnnCollector search(
       // Note: this is only public because Lucene91HnswGraphBuilder needs it
-      RandomVectorScorer scorer, int topK, final int[] eps, VamanaGraph graph)
-      throws IOException {
+      RandomVectorScorer scorer, int topK, final int[] eps, VamanaGraph graph) throws IOException {
     VamanaGraphBuilder.GraphBuilderKnnCollector results =
         new VamanaGraphBuilder.GraphBuilderKnnCollector(topK);
     search(results, scorer, eps, graph, null);
@@ -147,39 +151,35 @@ public class VamanaGraphSearcher {
    *     of candidates visited. Entry point of `-1` indicates visitation limit exceed
    * @throws IOException When accessing the vector fails
    */
-  private int[] findBestEntryPoint(
-      RandomVectorScorer scorer, VamanaGraph graph, long visitLimit)
+  private int[] findBestEntryPoint(RandomVectorScorer scorer, VamanaGraph graph, long visitLimit)
       throws IOException {
     int size = getGraphSize(graph);
     int visitedCount = 1;
     prepareScratchState(size);
     int currentEp = graph.entryNode();
     float currentScore = scorer.score(currentEp);
-    boolean foundBetter;
-    for (int level = graph.numLevels() - 1; level >= 1; level--) {
-      foundBetter = true;
-      visited.set(currentEp);
-      // Keep searching the given level until we stop finding a better candidate entry point
-      while (foundBetter) {
-        foundBetter = false;
-        graphSeek(graph, level, currentEp);
-        int friendOrd;
-        while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
-          assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
-          if (visited.getAndSet(friendOrd)) {
-            continue;
-          }
-          if (visitedCount >= visitLimit) {
-            return new int[] {-1, visitedCount};
-          }
-          float friendSimilarity = scorer.score(level, friendOrd);
-          visitedCount++;
-          if (friendSimilarity > currentScore
-              || (friendSimilarity == currentScore && friendOrd < currentEp)) {
-            currentScore = friendSimilarity;
-            currentEp = friendOrd;
-            foundBetter = true;
-          }
+    boolean foundBetter = true;
+    visited.set(currentEp);
+    // Keep searching until we stop finding a better candidate entry point
+    while (foundBetter) {
+      foundBetter = false;
+      graphSeek(graph, currentEp);
+      int friendOrd;
+      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
+        assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
+        if (visited.getAndSet(friendOrd)) {
+          continue;
+        }
+        if (visitedCount >= visitLimit) {
+          return new int[] {-1, visitedCount};
+        }
+        float friendSimilarity = scorer.score(friendOrd);
+        visitedCount++;
+        if (friendSimilarity > currentScore
+            || (friendSimilarity == currentScore && friendOrd < currentEp)) {
+          currentScore = friendSimilarity;
+          currentEp = friendOrd;
+          foundBetter = true;
         }
       }
     }
@@ -273,8 +273,8 @@ public class VamanaGraphSearcher {
   }
 
   /**
-   * Get the next neighbor from the graph, you must call {@link #graphSeek(VamanaGraph, int)}
-   * before calling this method. The default implementation will just call {@link
+   * Get the next neighbor from the graph, you must call {@link #graphSeek(VamanaGraph, int)} before
+   * calling this method. The default implementation will just call {@link
    * VamanaGraph#nextNeighbor()}
    *
    * @return see {@link VamanaGraph#nextNeighbor()}
