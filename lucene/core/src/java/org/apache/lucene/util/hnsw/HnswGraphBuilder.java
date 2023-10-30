@@ -372,7 +372,7 @@ public class HnswGraphBuilder implements HnswBuilder {
       throws IOException {
     RandomVectorScorer scorer = scorerSupplier.scorer(candidate);
     for (int i = 0; i < neighbors.size(); i++) {
-      float neighborSimilarity = scorer.score(level, neighbors.node[i]);
+      float neighborSimilarity = scorer.score(neighbors.node[i]);
       if (neighborSimilarity >= score) {
         return false;
       }

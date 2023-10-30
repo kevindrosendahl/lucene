@@ -76,7 +76,7 @@ final class ScalarQuantizedRandomVectorScorer implements RandomVectorScorer {
   }
 
   @Override
-  public float score(int level, int node) throws IOException {
+  public float score(int node) throws IOException {
     byte[] storedVectorValue = values.vectorValue(node);
     float storedVectorCorrection = values.getScoreCorrectionConstant();
     return similarity.score(
