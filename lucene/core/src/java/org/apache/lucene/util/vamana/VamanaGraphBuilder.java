@@ -19,12 +19,12 @@ package org.apache.lucene.util.vamana;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
@@ -198,6 +198,67 @@ public class VamanaGraphBuilder {
     addDiverseNeighbors(node, candidates);
   }
 
+  public void finish(List<float[]> vectors, VectorSimilarityFunction similarityFunction)
+      throws IOException {
+    cleanup();
+    setEntryPointToMedioid(vectors, similarityFunction);
+  }
+
+  private void cleanup() throws IOException {
+    var graph = getGraph();
+    VamanaGraph.NodesIterator it = graph.getNodes();
+    while (it.hasNext()) {
+      int node = it.nextInt();
+      var neighbors = graph.getNeighbors(node);
+      if (neighbors.size() <= M) {
+        continue;
+      }
+
+      var selected = selectDiverse(neighbors, M);
+      neighbors.clear();
+      for (var candidate : selected) {
+        neighbors.addInOrder(candidate.node, candidate.score);
+      }
+    }
+  }
+
+  private void setEntryPointToMedioid(
+      List<float[]> vectors, VectorSimilarityFunction similarityFunction) {
+    var ep = calculateEntryPoint(vectors, similarityFunction);
+    getGraph().setEntryNode(ep);
+  }
+
+  private int calculateEntryPoint(
+      List<float[]> vectors, VectorSimilarityFunction similarityFunction) {
+    int dimensions = vectors.get(0).length;
+    int numVectors = vectors.size();
+    float[] centroid = new float[dimensions];
+
+    // Initialize centroid
+    for (var vector : vectors) {
+      for (int j = 0; j < dimensions; j++) {
+        centroid[j] += vector[j];
+      }
+    }
+
+    for (int i = 0; i < dimensions; i++) {
+      centroid[i] /= numVectors;
+    }
+
+    var maxIdx = 0;
+    var maxScore = 0.0f;
+    for (int i = 0; i < vectors.size(); i++) {
+      var score = similarityFunction.compare(centroid, vectors.get(i));
+      if (Float.compare(maxScore, score) >= 0) {
+        continue;
+      }
+      maxIdx = i;
+      maxScore = score;
+    }
+
+    return maxIdx;
+  }
+
   private long printGraphBuildStatus(int node, long start, long t) {
     long now = System.nanoTime();
     infoStream.message(
@@ -222,7 +283,10 @@ public class VamanaGraphBuilder {
     popToScratch(candidates);
     // FIXME: why M * 2?
     int maxConn = M * 2;
-    selectAndLinkDiverse(neighbors, scratch, maxConn);
+    var selected = selectDiverse(scratch, maxConn);
+    for (var candidate : selected) {
+      neighbors.addInOrder(candidate.node, candidate.score);
+    }
 
     // FIXME: check if same as backlink
     // Link the selected nodes to the new node, and the new node to the selected nodes (again
@@ -240,10 +304,7 @@ public class VamanaGraphBuilder {
   }
 
   // FIXME: write second version that uses occlude_factor like DiskANN, or prove this is equivalent
-  private void selectAndLinkDiverse(NeighborArray neighbors, NeighborArray candidates, int maxConn)
-      throws IOException {
-    // Select the best maxConnOnLevel neighbors of the new node, applying the diversity heuristic
-    // candidate is scratch, which has the closest neighbors at the end
+  private List<Candidate> selectDiverse(NeighborArray candidates, int maxConn) throws IOException {
     var selected = new FixedBitSet(candidates.size());
     List<Candidate> selectedCandidates = new ArrayList<>(maxConn);
 
@@ -254,7 +315,6 @@ public class VamanaGraphBuilder {
         int cNode = candidates.node[i];
         float cScore = candidates.score[i];
         assert cNode <= vamana.maxNodeId();
-        // FIXME: include alpha in diversity check
         if (diversityCheck(cNode, cScore, candidates, selected, a)) {
           selected.set(i);
           selectedCandidates.add(new Candidate(cNode, cScore));
@@ -262,10 +322,8 @@ public class VamanaGraphBuilder {
       }
     }
 
-    Collections.sort(selectedCandidates, Comparator.reverseOrder());
-    for (var candidate : selectedCandidates) {
-      neighbors.addInOrder(candidate.node, candidate.score);
-    }
+    selectedCandidates.sort(Comparator.reverseOrder());
+    return selectedCandidates;
   }
 
   record Candidate(int node, float score) implements Comparable<Candidate> {

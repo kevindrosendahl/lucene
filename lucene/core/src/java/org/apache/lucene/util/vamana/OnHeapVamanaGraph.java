@@ -144,6 +144,10 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
     return entryNode;
   }
 
+  public void setEntryNode(int entryNode) {
+    this.entryNode = entryNode;
+  }
+
   /**
    * WARN: calling this method will essentially iterate through all nodes, we have built some
    * caching mechanism such that if graph is not changed only the first non-zero level call will pay

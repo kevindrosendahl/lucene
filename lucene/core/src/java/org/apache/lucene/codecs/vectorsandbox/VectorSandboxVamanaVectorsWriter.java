@@ -328,6 +328,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
     private int lastDocID = -1;
     private int node = 0;
+    private boolean finished;
 
     static FieldWriter<?> create(
         FieldInfo fieldInfo, int M, int beamWidth, float alpha, InfoStream infoStream)
@@ -372,6 +373,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
           VamanaGraphBuilder.create(
               scorerSupplier, M, beamWidth, alpha, VamanaGraphBuilder.randSeed);
       vamanaGraphBuilder.setInfoStream(infoStream);
+      this.finished = false;
     }
 
     @Override
@@ -390,8 +392,15 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       lastDocID = docID;
     }
 
-    OnHeapVamanaGraph getGraph() {
+    @SuppressWarnings("unchecked")
+    OnHeapVamanaGraph getGraph() throws IOException {
       if (vectors.size() > 0) {
+        if (!finished) {
+          vamanaGraphBuilder.finish(
+              (List<float[]>) this.vectors, this.fieldInfo.getVectorSimilarityFunction());
+          finished = true;
+        }
+
         return vamanaGraphBuilder.getGraph();
       } else {
         return null;
