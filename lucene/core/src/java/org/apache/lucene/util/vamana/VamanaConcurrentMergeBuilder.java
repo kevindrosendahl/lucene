@@ -25,7 +25,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
@@ -49,7 +48,6 @@ public class VamanaConcurrentMergeBuilder implements VamanaBuilder {
       ExecutorService exec,
       int numWorker,
       RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
       int M,
       int beamWidth,
       float alpha,
@@ -62,14 +60,7 @@ public class VamanaConcurrentMergeBuilder implements VamanaBuilder {
     for (int i = 0; i < numWorker; i++) {
       workers[i] =
           new ConcurrentMergeWorker(
-              scorerSupplier.copy(),
-              similarityFunction,
-              M,
-              beamWidth,
-              alpha,
-              vamana,
-              initializedNodes,
-              workProgress);
+              scorerSupplier.copy(), M, beamWidth, alpha, vamana, initializedNodes, workProgress);
     }
   }
 
@@ -125,6 +116,11 @@ public class VamanaConcurrentMergeBuilder implements VamanaBuilder {
   }
 
   @Override
+  public void finish() throws IOException {
+    workers[0].finish();
+  }
+
+  @Override
   public void setInfoStream(InfoStream infoStream) {
     this.infoStream = infoStream;
     for (VamanaBuilder worker : workers) {
@@ -157,7 +153,6 @@ public class VamanaConcurrentMergeBuilder implements VamanaBuilder {
 
     private ConcurrentMergeWorker(
         RandomVectorScorerSupplier scorerSupplier,
-        VectorSimilarityFunction similarityFunction,
         int M,
         int beamWidth,
         float alpha,
@@ -167,7 +162,6 @@ public class VamanaConcurrentMergeBuilder implements VamanaBuilder {
         throws IOException {
       super(
           scorerSupplier,
-          similarityFunction,
           M,
           beamWidth,
           alpha,

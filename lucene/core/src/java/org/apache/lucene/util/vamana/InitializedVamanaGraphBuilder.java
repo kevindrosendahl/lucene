@@ -20,7 +20,6 @@ package org.apache.lucene.util.vamana;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BitSet;
 
 /**
@@ -47,7 +46,6 @@ public final class InitializedVamanaGraphBuilder extends VamanaGraphBuilder {
    */
   public static InitializedVamanaGraphBuilder fromGraph(
       RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
       int M,
       int beamWidth,
       float alpha,
@@ -58,7 +56,6 @@ public final class InitializedVamanaGraphBuilder extends VamanaGraphBuilder {
       throws IOException {
     return new InitializedVamanaGraphBuilder(
         scorerSupplier,
-        similarityFunction,
         M,
         beamWidth,
         alpha,
@@ -93,14 +90,13 @@ public final class InitializedVamanaGraphBuilder extends VamanaGraphBuilder {
 
   public InitializedVamanaGraphBuilder(
       RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
       int M,
       int beamWidth,
       float alpha,
       OnHeapVamanaGraph initializedGraph,
       BitSet initializedNodes)
       throws IOException {
-    super(scorerSupplier, similarityFunction, M, beamWidth, alpha, initializedGraph);
+    super(scorerSupplier, M, beamWidth, alpha, initializedGraph);
     this.initializedNodes = initializedNodes;
   }
 

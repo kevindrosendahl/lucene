@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
@@ -55,7 +54,6 @@ public class VamanaGraphBuilder implements VamanaBuilder {
   private final float alpha;
 
   private final RandomVectorScorerSupplier scorerSupplier;
-  private final VectorSimilarityFunction similarityFunction;
   private final VamanaGraphSearcher graphSearcher;
   private final GraphBuilderKnnCollector
       beamCandidates; // for levels of graph where we add the node
@@ -65,25 +63,15 @@ public class VamanaGraphBuilder implements VamanaBuilder {
   private InfoStream infoStream = InfoStream.getDefault();
 
   public static VamanaGraphBuilder create(
-      RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
-      int M,
-      int beamWidth,
-      float alpha)
+      RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth, float alpha)
       throws IOException {
-    return new VamanaGraphBuilder(scorerSupplier, similarityFunction, M, beamWidth, alpha, -1);
+    return new VamanaGraphBuilder(scorerSupplier, M, beamWidth, alpha, -1);
   }
 
   public static VamanaGraphBuilder create(
-      RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
-      int M,
-      int beamWidth,
-      float alpha,
-      int graphSize)
+      RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth, float alpha, int graphSize)
       throws IOException {
-    return new VamanaGraphBuilder(
-        scorerSupplier, similarityFunction, M, beamWidth, alpha, graphSize);
+    return new VamanaGraphBuilder(scorerSupplier, M, beamWidth, alpha, graphSize);
   }
 
   /**
@@ -97,25 +85,13 @@ public class VamanaGraphBuilder implements VamanaBuilder {
    * @param graphSize size of graph, if unknown, pass in -1
    */
   protected VamanaGraphBuilder(
-      RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
-      int M,
-      int beamWidth,
-      float alpha,
-      int graphSize)
+      RandomVectorScorerSupplier scorerSupplier, int M, int beamWidth, float alpha, int graphSize)
       throws IOException {
-    this(
-        scorerSupplier,
-        similarityFunction,
-        M,
-        beamWidth,
-        alpha,
-        new OnHeapVamanaGraph(M, graphSize));
+    this(scorerSupplier, M, beamWidth, alpha, new OnHeapVamanaGraph(M, graphSize));
   }
 
   protected VamanaGraphBuilder(
       RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
       int M,
       int beamWidth,
       float alpha,
@@ -123,7 +99,6 @@ public class VamanaGraphBuilder implements VamanaBuilder {
       throws IOException {
     this(
         scorerSupplier,
-        similarityFunction,
         M,
         beamWidth,
         alpha,
@@ -144,7 +119,6 @@ public class VamanaGraphBuilder implements VamanaBuilder {
    */
   protected VamanaGraphBuilder(
       RandomVectorScorerSupplier scorerSupplier,
-      VectorSimilarityFunction similarityFunction,
       int M,
       int beamWidth,
       float alpha,
@@ -161,7 +135,6 @@ public class VamanaGraphBuilder implements VamanaBuilder {
     this.alpha = alpha;
     this.scorerSupplier =
         Objects.requireNonNull(scorerSupplier, "scorer supplier must not be null");
-    this.similarityFunction = similarityFunction;
     this.vamana = vamana;
     this.graphSearcher = graphSearcher;
     beamCandidates = new GraphBuilderKnnCollector(beamWidth);
@@ -248,9 +221,10 @@ public class VamanaGraphBuilder implements VamanaBuilder {
     addDiverseNeighbors(node, scratch);
   }
 
-  public void finish(List<float[]> vectors) throws IOException {
+  @Override
+  public void finish() throws IOException {
     cleanup();
-    setEntryPointToMedioid(vectors);
+    improveEntryPoint();
   }
 
   private void cleanup() throws IOException {
@@ -259,51 +233,81 @@ public class VamanaGraphBuilder implements VamanaBuilder {
     while (it.hasNext()) {
       int node = it.nextInt();
       var neighbors = graph.getNeighbors(node);
-      if (neighbors.size() <= M) {
-        continue;
-      }
+      neighbors.rwlock.writeLock().lock();
+      try {
+        if (neighbors.size() <= M) {
+          continue;
+        }
 
-      SelectedDiverse selected = selectDiverse(neighbors);
-      neighbors.clear();
-      for (Candidate candidate : selected.candidates) {
-        neighbors.addInOrder(candidate.node, candidate.score);
+        SelectedDiverse selected = selectDiverse(neighbors);
+        neighbors.clear();
+        for (Candidate candidate : selected.candidates) {
+          neighbors.addInOrder(candidate.node, candidate.score);
+        }
+      } finally {
+        neighbors.rwlock.writeLock().unlock();
       }
     }
   }
 
-  private void setEntryPointToMedioid(List<float[]> vectors) {
-    var ep = calculateEntryPoint(vectors);
+  private void improveEntryPoint() throws IOException {
+    var ep = estimateImprovedEntryPoint();
     getGraph().setEntryNode(ep);
   }
 
-  private int calculateEntryPoint(List<float[]> vectors) {
-    int dimensions = vectors.get(0).length;
-    int numVectors = vectors.size();
-    float[] centroid = new float[dimensions];
+  private int estimateImprovedEntryPoint() throws IOException {
+    int start = getGraph().entryNode();
+    int newStart = -1;
 
-    // Initialize centroid
-    for (var vector : vectors) {
-      for (int j = 0; j < dimensions; j++) {
-        centroid[j] += vector[j];
+    while (newStart != start) {
+      List<Candidate> candidates = new ArrayList<>();
+
+      NeighborArray startNeighbors = getGraph().getNeighbors(start);
+      startNeighbors.rwlock.readLock().lock();
+      try {
+        // Collect the total score of the entry point compared to all its neighbors.
+        RandomVectorScorer startScorer = scorerSupplier.scorer(start);
+        float totalScore = 0.0f;
+        for (int i = 0; i < startNeighbors.size(); i++) {
+          int neighbor = startNeighbors.node[i];
+          float score = startScorer.score(neighbor);
+          totalScore += score;
+        }
+
+        candidates.add(new Candidate(start, totalScore));
+
+        // Then do the same for each neighbor of the entrypoint.
+        for (int i = 0; i < startNeighbors.size(); i++) {
+          int neighbor = startNeighbors.node[i];
+          RandomVectorScorer neighborScorer = scorerSupplier.scorer(neighbor);
+          NeighborArray neighborNeighbors = getGraph().getNeighbors(neighbor);
+
+          float neighborScore = 0.0f;
+          neighborNeighbors.rwlock.readLock().lock();
+          try {
+            for (int j = 0; j < neighborNeighbors.size(); j++) {
+              int neighborNeighbor = neighborNeighbors.node[j];
+              float score = neighborScorer.score(neighborNeighbor);
+              neighborScore += score;
+            }
+
+          } finally {
+            neighborNeighbors.rwlock.readLock().unlock();
+          }
+
+          candidates.add(new Candidate(neighbor, neighborScore));
+        }
+
+      } finally {
+        startNeighbors.rwlock.readLock().unlock();
       }
+
+      // Choose the node which had the smallest cumulative score.
+      candidates.sort(Comparator.naturalOrder());
+      newStart = candidates.get(0).node;
     }
 
-    for (int i = 0; i < dimensions; i++) {
-      centroid[i] /= numVectors;
-    }
-
-    var maxIdx = 0;
-    var maxScore = 0.0f;
-    for (int i = 0; i < vectors.size(); i++) {
-      var score = similarityFunction.compare(centroid, vectors.get(i));
-      if (Float.compare(maxScore, score) >= 0) {
-        continue;
-      }
-      maxIdx = i;
-      maxScore = score;
-    }
-
-    return maxIdx;
+    return newStart;
   }
 
   private long printGraphBuildStatus(int node, long start, long t) {

@@ -28,7 +28,6 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
@@ -46,7 +45,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
 
   protected final FieldInfo fieldInfo;
   protected final RandomVectorScorerSupplier scorerSupplier;
-  protected final VectorSimilarityFunction similarityFunction;
   protected final int M;
   protected final int beamWidth;
   protected final float alpha;
@@ -66,7 +64,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
       float alpha) {
     this.fieldInfo = fieldInfo;
     this.scorerSupplier = scorerSupplier;
-    this.similarityFunction = fieldInfo.getVectorSimilarityFunction();
     this.M = M;
     this.beamWidth = beamWidth;
     this.alpha = alpha;
@@ -127,8 +124,7 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
   protected VamanaBuilder createBuilder(DocIdSetIterator mergedVectorIterator, int maxOrd)
       throws IOException {
     if (initReader == null) {
-      return VamanaGraphBuilder.create(
-          scorerSupplier, similarityFunction, M, beamWidth, alpha, maxOrd);
+      return VamanaGraphBuilder.create(scorerSupplier, M, beamWidth, alpha, maxOrd);
     }
 
     VamanaGraph initializerGraph = ((VamanaGraphProvider) initReader).getGraph(fieldInfo.name);
@@ -137,7 +133,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
     int[] oldToNewOrdinalMap = getNewOrdMapping(mergedVectorIterator, initializedNodes);
     return InitializedVamanaGraphBuilder.fromGraph(
         scorerSupplier,
-        similarityFunction,
         M,
         beamWidth,
         alpha,
