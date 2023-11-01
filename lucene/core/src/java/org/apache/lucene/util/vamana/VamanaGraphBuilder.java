@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
@@ -144,8 +145,8 @@ public class VamanaGraphBuilder {
     this.graphSearcher =
         new VamanaGraphSearcher(
             new NeighborQueue(beamWidth, true), new FixedBitSet(this.getGraph().size()));
-    // in scratch we store candidates in reverse order: worse candidates are first
-    scratch = new NeighborArray(Math.max(beamWidth, M + 1), false);
+    // TODO: difference here, store ascending
+    scratch = new NeighborArray(Math.max(beamWidth, M + 1), true);
     beamCandidates = new GraphBuilderKnnCollector(beamWidth);
   }
 
@@ -283,9 +284,11 @@ public class VamanaGraphBuilder {
     assert neighbors.size() == 0; // new node
     popToScratch(candidates);
     // FIXME: why M * 2?
-    int maxConn = M * 2;
-    var selected = selectDiverse(scratch, maxConn);
+//    int maxConn = M * 2;
+    var selected = selectDiverse(scratch, M);
+    BuildLogger.logSelectedDiverse(selected);
     for (var candidate : selected) {
+      BuildLogger.logLink(node, candidate.node, candidate.score);
       neighbors.addInOrder(candidate.node, candidate.score);
     }
 
@@ -295,10 +298,37 @@ public class VamanaGraphBuilder {
     for (int i = 0; i < size; i++) {
       int nbr = neighbors.node[i];
       NeighborArray nbrsOfNbr = vamana.getNeighbors(nbr);
-      nbrsOfNbr.addOutOfOrder(node, neighbors.score[i]);
-      if (nbrsOfNbr.size() > maxConn) {
-        int indexToRemove = findWorstNonDiverse(nbrsOfNbr, nbr);
-        nbrsOfNbr.removeIndex(indexToRemove);
+      nbrsOfNbr.insertSorted(node, neighbors.score[i]);
+      BuildLogger.logLink(nbr, node, neighbors.score[i]);
+//      BuildLogger.logBacklinked(nbr);
+      // FIXME: this M * 2 is the overflow factor in jvector
+      if (nbrsOfNbr.size() > M * 2) {
+        var stillDiverse = selectDiverse(nbrsOfNbr, M);
+
+        // FIXME: just for journaling
+        {
+          var set = stillDiverse.stream().map(Candidate::node).collect(Collectors.toSet());
+          var pruned = new ArrayList<Integer>();
+          for (int j = 0; j < nbrsOfNbr.size(); j++) {
+            if (!set.contains(nbrsOfNbr.node[j])) {
+//              BuildLogger.logPruned(nbrsOfNbr.node[j]);
+              pruned.add(nbrsOfNbr.node[j]);
+            }
+          }
+
+          pruned.sort(Comparator.naturalOrder());
+          for (var pnode : pruned) {
+            BuildLogger.logPruned(pnode);
+          }
+        }
+
+        nbrsOfNbr.clear();
+        for (var diverse : stillDiverse) {
+          nbrsOfNbr.addInOrder(diverse.node, diverse.score);
+        }
+//        int indexToRemove = findWorstNonDiverse(nbrsOfNbr, nbr);
+//        BuildLogger.logPruned(nbrsOfNbr.node[indexToRemove]);
+//        nbrsOfNbr.removeIndex(indexToRemove);
       }
     }
   }
@@ -309,7 +339,7 @@ public class VamanaGraphBuilder {
     List<Candidate> selectedCandidates = new ArrayList<>(maxConn);
 
     for (float a = 1.0f; a < alpha + 1E-6 && selectedCandidates.size() < maxConn; a += 0.2f) {
-      for (int i = candidates.size() - 1; selectedCandidates.size() < maxConn && i >= 0; i--) {
+      for (int i = 0; selectedCandidates.size() < maxConn && i < candidates.size(); i++) {
         if (selected.get(i)) {
           continue;
         }
@@ -330,7 +360,7 @@ public class VamanaGraphBuilder {
     return selectedCandidates;
   }
 
-  record Candidate(int node, float score) implements Comparable<Candidate> {
+  public record Candidate(int node, float score) implements Comparable<Candidate> {
 
     @Override
     public int compareTo(Candidate o) {
@@ -346,11 +376,18 @@ public class VamanaGraphBuilder {
   private void popToScratch(GraphBuilderKnnCollector candidates) {
     scratch.clear();
     int candidateCount = candidates.size();
-    // extract all the Neighbors from the queue into an array; these will now be
-    // sorted from worst to best
+
+    var reverseOrdered = new Candidate[candidateCount];
+    // FIXME: fix the collector to be in the right order
+
     for (int i = 0; i < candidateCount; i++) {
       float maxSimilarity = candidates.minimumScore();
-      scratch.addInOrder(candidates.popNode(), maxSimilarity);
+      reverseOrdered[i] = new Candidate(candidates.popNode(), maxSimilarity);
+    }
+
+    for (int i = reverseOrdered.length - 1; i >= 0; i--) {
+      var candidate = reverseOrdered[i];
+      scratch.addInOrder(candidate.node, candidate.score);
     }
   }
 
@@ -368,13 +405,17 @@ public class VamanaGraphBuilder {
     for (int i = selected.nextSetBit(0);
         i != DocIdSetIterator.NO_MORE_DOCS;
         i = selected.nextSetBit(i + 1)) {
-      int other = candidates.node[i];
-      if (other == candidate) {
+      int otherNode = candidates.node[i];
+      if (otherNode == candidate) {
         // FIXME: explain this break
         return false;
       }
 
-      float neighborSimilarity = scorer.score(candidates.node[i]);
+      if (candidate == 0 && otherNode == 2) {
+        BuildLogger.nothing();
+      }
+
+      float neighborSimilarity = scorer.score(otherNode);
       if (neighborSimilarity > score * a) {
         return false;
       }

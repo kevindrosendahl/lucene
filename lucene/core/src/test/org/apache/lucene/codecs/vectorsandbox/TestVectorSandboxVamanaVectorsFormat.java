@@ -16,9 +16,11 @@
  */
 package org.apache.lucene.codecs.vectorsandbox;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -31,122 +33,32 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.vamana.BuildLogger;
+import org.apache.lucene.util.vamana.RandomVectorScorerSupplier;
+import org.apache.lucene.util.vamana.VamanaGraphBuilder;
+import org.apache.lucene.util.vectors.RandomAccessVectorValues;
 import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestVectorSandboxVamanaVectorsFormat extends LuceneTestCase {
 
-  private static final float[][] VECTORS = new float[100][4];
+  private static final int NUM_VECTORS = 10000;
+  private static final int VECTOR_DIMENSIONS = 4;
+  private static final List<float[]> VECTORS = new ArrayList<>(NUM_VECTORS);
   private static final Random RANDOM = new Random(0);
 
   static {
-    for (var i = 0; i < VECTORS.length; i++) {
-      for (var j = 0; j < VECTORS[0].length; j++) {
-        VECTORS[i][j] = RANDOM.nextFloat();
-      }
-    }
-  }
-
-  @Test
-  @Ignore
-  public void createIndex() throws Exception {
-    var sandboxCodec =
-        new Lucene99Codec() {
-          @Override
-          public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxHnswVectorsFormat();
-          }
-        };
-
-    try (var directory =
-        new MMapDirectory(
-            Path.of("/Users/kevin.rosendahl/scratch/lucene-vector-sandbox/sandbox"))) {
-      var config =
-          new IndexWriterConfig()
-              .setCodec(sandboxCodec)
-              .setCommitOnClose(true)
-              .setUseCompoundFile(false);
-      try (var writer = new IndexWriter(directory, config)) {
-        for (var vector : VECTORS) {
-          var doc = new Document();
-          doc.add(new KnnFloatVectorField("vector", vector));
-          writer.addDocument(doc);
-        }
-      }
-    }
-
-    var lucene95Codec = new Lucene99Codec();
-
-    try (var directory =
-        new MMapDirectory(
-            Path.of("/Users/kevin.rosendahl/scratch/lucene-vector-sandbox/lucene95"))) {
-      var config =
-          new IndexWriterConfig()
-              .setCodec(lucene95Codec)
-              .setCommitOnClose(true)
-              .setUseCompoundFile(false);
-      try (var writer = new IndexWriter(directory, config)) {
-        for (var vector : VECTORS) {
-          var doc = new Document();
-          doc.add(new KnnFloatVectorField("vector", vector));
-          writer.addDocument(doc);
-        }
-      }
-    }
-  }
-
-  @Test
-  @Ignore
-  public void loadGraph() throws Exception {
-    try (var sandboxDirectory =
-        new MMapDirectory(
-            Path.of("/Users/kevin.rosendahl/scratch/lucene-vector-sandbox/sandbox"))) {
-      try (var lucene95Directory =
-          new MMapDirectory(
-              Path.of("/Users/kevin.rosendahl/scratch/lucene-vector-sandbox/lucene95"))) {
-
-        var sandboxReader = DirectoryReader.open(sandboxDirectory);
-        var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
-        var sandboxPerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader)
-                ((CodecReader) sandboxLeafReader).getVectorReader();
-        var sandboxVectorReader =
-            (VectorSandboxHnswVectorsReader) sandboxPerFieldVectorReader.getFieldReader("vector");
-        var sandboxGraph = sandboxVectorReader.getGraph("vector");
-
-        var lucene95Reader = DirectoryReader.open(lucene95Directory);
-        var lucene95LeafReader = lucene95Reader.leaves().get(0).reader();
-        var lucene95PerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader)
-                ((CodecReader) lucene95LeafReader).getVectorReader();
-        var lucene95VectorReader =
-            (Lucene99HnswVectorsReader) lucene95PerFieldVectorReader.getFieldReader("vector");
-        var lucene95Graph = lucene95VectorReader.getGraph("vector");
-
-        lucene95Graph.seek(1, 4);
-        var lucene95Neighbors = new ArrayList<Integer>();
-        var lucene95Neighbor = lucene95Graph.nextNeighbor();
-        while (lucene95Neighbor != DocIdSetIterator.NO_MORE_DOCS) {
-          lucene95Neighbors.add(lucene95Neighbor);
-          lucene95Neighbor = lucene95Graph.nextNeighbor();
-        }
-
-        sandboxGraph.seek(1, 4);
-        var sandboxNeighbors = new ArrayList<Integer>();
-        var sandboxNeighbor = sandboxGraph.nextNeighbor();
-        while (sandboxNeighbor != DocIdSetIterator.NO_MORE_DOCS) {
-          sandboxNeighbors.add(sandboxNeighbor);
-          sandboxNeighbor = sandboxGraph.nextNeighbor();
-        }
-
-        System.out.println("lucene95Neighbors = " + lucene95Neighbors);
-        System.out.println("sandboxNeighbors = " + sandboxNeighbors);
+    for (var i = 0; i < NUM_VECTORS; i++) {
+      VECTORS.add(new float[VECTOR_DIMENSIONS]);
+      for (var j = 0; j < VECTOR_DIMENSIONS; j++) {
+        VECTORS.get(i)[j] = RANDOM.nextFloat();
       }
     }
   }
@@ -191,7 +103,15 @@ public class TestVectorSandboxVamanaVectorsFormat extends LuceneTestCase {
         var luceneReader = DirectoryReader.open(luceneDirectory);
         var luceneSearcher = new IndexSearcher(luceneReader);
 
-        var query = new KnnFloatVectorQuery("vector", VECTORS[0], 5);
+        var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
+        var sandboxPerFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) sandboxLeafReader).getVectorReader();
+        var sandboxVectorReader =
+            (VectorSandboxVamanaVectorsReader) sandboxPerFieldVectorReader.getFieldReader("vector");
+        var sandboxGraph = sandboxVectorReader.getGraph("vector");
+
+        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 5);
         var sandbox =
             Arrays.stream(sandboxSearcher.search(query, 5).scoreDocs)
                 .map(scoreDoc -> scoreDoc.doc)
@@ -200,10 +120,64 @@ public class TestVectorSandboxVamanaVectorsFormat extends LuceneTestCase {
             Arrays.stream(luceneSearcher.search(query, 5).scoreDocs)
                 .map(scoreDoc -> scoreDoc.doc)
                 .toArray();
-        //        Assert.assertArrayEquals(lucene, sandbox);
+
         System.out.println("sandbox = " + sandbox);
         System.out.println("lucene = " + lucene);
       }
+    }
+  }
+
+  @Test
+  public void directGraphCreate() throws Exception {
+    var values = new RAVectorValues<>(VECTORS, VECTOR_DIMENSIONS);
+
+    var builder =
+        VamanaGraphBuilder.create(
+            RandomVectorScorerSupplier.createFloats(values, VectorSimilarityFunction.COSINE),
+//            16,
+            16 * 2,
+            100,
+            1.2f,
+            13);
+
+    for (int i = 0; i < VECTORS.size(); i++) {
+      builder.addGraphNode(i);
+    }
+
+    builder.finish(VECTORS, VectorSimilarityFunction.COSINE);
+    var graph = builder.getGraph();
+    BuildLogger.flush();
+    System.out.println("graph = " + graph);
+  }
+
+  private static class RAVectorValues<T> implements RandomAccessVectorValues<T> {
+
+    private final List<T> vectors;
+    private final int dim;
+
+    RAVectorValues(List<T> vectors, int dim) {
+      this.vectors = vectors;
+      this.dim = dim;
+    }
+
+    @Override
+    public int size() {
+      return vectors.size();
+    }
+
+    @Override
+    public int dimension() {
+      return dim;
+    }
+
+    @Override
+    public T vectorValue(int targetOrd) throws IOException {
+      return vectors.get(targetOrd);
+    }
+
+    @Override
+    public RandomAccessVectorValues<T> copy() throws IOException {
+      return this;
     }
   }
 }

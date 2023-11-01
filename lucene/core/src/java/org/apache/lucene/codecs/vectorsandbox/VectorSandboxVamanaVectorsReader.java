@@ -443,6 +443,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
       this.dataIn =
           vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
+      // FIXME: read entry node
       this.entryNode = 0;
       this.size = entry.size();
       this.dimensions = entry.dimension;

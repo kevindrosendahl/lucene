@@ -296,7 +296,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     }
 
     // Write graph nodes on each level
-    // FIXME: not writing levels
+    // FIXME: write entrypoint
     // Include node offset data
     long start = vectorIndex.getFilePointer();
     meta.writeLong(start);

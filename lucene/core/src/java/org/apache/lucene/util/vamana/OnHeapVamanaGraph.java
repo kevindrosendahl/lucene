@@ -117,6 +117,7 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
     graph[node] = new NeighborArray(nsize, true);
     size++;
     maxNodeId = Math.max(maxNodeId, node);
+    BuildLogger.logAddNode(node);
   }
 
   @Override
