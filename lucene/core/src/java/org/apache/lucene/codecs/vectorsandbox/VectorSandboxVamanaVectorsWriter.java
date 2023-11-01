@@ -201,6 +201,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         quantizedVectorOffsetAndLen =
             quantizedVectorsWriter.flush(sortMap, field.quantizedWriter, field.docsWithField);
       }
+      field.vamanaGraphBuilder.finish();
       if (sortMap == null) {
         writeField(field, maxDoc, quantizedVectorOffsetAndLen);
       } else {

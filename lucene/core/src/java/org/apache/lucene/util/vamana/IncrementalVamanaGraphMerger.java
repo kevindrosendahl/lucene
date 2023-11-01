@@ -147,7 +147,10 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
       DocIdSetIterator mergedVectorIterator, InfoStream infoStream, int maxOrd) throws IOException {
     VamanaBuilder builder = createBuilder(mergedVectorIterator, maxOrd);
     builder.setInfoStream(infoStream);
-    return builder.build(maxOrd);
+    OnHeapVamanaGraph graph = builder.build(maxOrd);
+    builder.finish();
+
+    return graph;
   }
 
   /**
