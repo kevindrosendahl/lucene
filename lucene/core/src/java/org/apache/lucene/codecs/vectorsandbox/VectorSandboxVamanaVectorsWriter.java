@@ -118,9 +118,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     final String quantizedVectorDataFileName =
         quantizedVectorsFormat != null
             ? IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
             : null;
     boolean success = false;
     try {
@@ -391,7 +391,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    *
    * <p>Additionally, the graph node connections are written to the vectorIndex.
    *
-   * @param graph The current on heap graph
+   * @param graph       The current on heap graph
    * @param newToOldMap the new node ids indexed to the old node ids
    * @param oldToNewMap the old node ids indexed to the new node ids
    * @param nodeOffsets where to place the new offsets for the nodes in the vector index.
@@ -682,6 +682,11 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         encoding == VectorEncoding.FLOAT32
             ? ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
             : null;
+    ByteBuffer quantizationOffsetBuffer =
+        fieldData.isQuantized() ? ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            : null;
+    ScalarQuantizer quantizer =
+        fieldData.isQuantized() ? fieldData.quantizedWriter.createQuantizer() : null;
 
     int[] sortedNodes = getSortedNodes(graph.getNodes());
     int[] offsets = new int[sortedNodes.length];
@@ -691,16 +696,27 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long offsetStart = vectorIndex.getFilePointer();
 
       // Write the full fidelity vector
-      // TODO: support scalar quantization
       switch (encoding) {
         case BYTE -> {
           byte[] v = (byte[]) fieldData.vectors.get(node);
           vectorIndex.writeBytes(v, v.length);
         }
         case FLOAT32 -> {
-          float[] v = (float[]) fieldData.vectors.get(node);
-          vectorBuffer.asFloatBuffer().put(v);
-          vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+          if (fieldData.isQuantized()) {
+            byte[] vector = new byte[fieldData.dim];
+            float offsetCorrection =
+                quantizer.quantize((float[]) fieldData.vectors.get(node), vector,
+                    fieldData.fieldInfo.getVectorSimilarityFunction());
+            vectorIndex.writeBytes(vector, vector.length);
+            quantizationOffsetBuffer.putFloat(offsetCorrection);
+            vectorIndex.writeBytes(quantizationOffsetBuffer.array(),
+                quantizationOffsetBuffer.array().length);
+            quantizationOffsetBuffer.rewind();
+          } else {
+            float[] v = (float[]) fieldData.vectors.get(node);
+            vectorBuffer.asFloatBuffer().put(v);
+            vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+          }
         }
       }
 
@@ -722,7 +738,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         vectorIndex.writeVInt(nnodes[i]);
       }
 
-      if (encoding == VectorEncoding.FLOAT32) {
+      if (encoding == VectorEncoding.FLOAT32 && !fieldData.isQuantized()) {
         vectorIndex.alignFilePointer(Float.BYTES);
       }
 
@@ -986,10 +1002,10 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long quantizationSpace = quantizedWriter != null ? quantizedWriter.ramBytesUsed() : 0L;
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
-              * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+          * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
           + (long) vectors.size()
-              * fieldInfo.getVectorDimension()
-              * fieldInfo.getVectorEncoding().byteSize
+          * fieldInfo.getVectorDimension()
+          * fieldInfo.getVectorEncoding().byteSize
           + vamanaGraphBuilder.getGraph().ramBytesUsed()
           + quantizationSpace;
     }

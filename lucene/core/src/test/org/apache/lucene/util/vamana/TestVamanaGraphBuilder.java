@@ -1,11 +1,13 @@
 package org.apache.lucene.util.vamana;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
@@ -15,6 +17,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Test;
@@ -47,7 +51,8 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f);
+            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f,
+                new VectorSandboxScalarQuantizedVectorsFormat());
           }
         };
 
@@ -66,6 +71,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
       }
 
       var sandboxReader = DirectoryReader.open(sandboxDirectory);
+      var sandboxSearcher = new IndexSearcher(sandboxReader);
       var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
       var sandboxPerFieldVectorReader =
           (PerFieldKnnVectorsFormat.FieldsReader)
@@ -78,6 +84,14 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
 
       System.out.println("sandboxGraph = " + sandboxGraph);
       System.out.println("onHeapGraph = " + onHeapGraph);
+
+//      sandboxGraph.seek(0);
+//      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
+
+      var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 5);
+      Arrays.stream(sandboxSearcher.search(query, 5).scoreDocs)
+          .map(scoreDoc -> scoreDoc.doc)
+          .forEach(i -> System.out.println("i = " + i));
     }
   }
 

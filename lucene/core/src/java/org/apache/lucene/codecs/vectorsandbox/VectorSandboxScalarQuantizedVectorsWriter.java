@@ -135,7 +135,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
     writeQuantizedVectors(fieldData);
     long quantizedVectorDataLength =
         quantizedVectorData.getFilePointer() - quantizedVectorDataOffset;
-    return new long[] {quantizedVectorDataOffset, quantizedVectorDataLength};
+    return new long[]{quantizedVectorDataOffset, quantizedVectorDataLength};
   }
 
   private void writeQuantizedVectors(QuantizationFieldVectorWriter fieldData) throws IOException {
@@ -186,7 +186,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
     writeSortedQuantizedVectors(fieldData, ordMap);
     long quantizedVectorLength = quantizedVectorData.getFilePointer() - vectorDataOffset;
 
-    return new long[] {vectorDataOffset, quantizedVectorLength};
+    return new long[]{vectorDataOffset, quantizedVectorLength};
   }
 
   void writeSortedQuantizedVectors(QuantizationFieldVectorWriter fieldData, int[] ordMap)
@@ -294,7 +294,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
    * individual states.
    *
    * @param mergedQuantizationState The merged quantization state
-   * @param quantizationStates The quantization states of the individual segments
+   * @param quantizationStates      The quantization states of the individual segments
    * @return true if the quantiles should be recomputed
    */
   static boolean shouldRecomputeQuantiles(
@@ -309,12 +309,12 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
             / QUANTILE_RECOMPUTE_LIMIT;
     for (ScalarQuantizer quantizationState : quantizationStates) {
       if (Math.abs(
-              quantizationState.getUpperQuantile() - mergedQuantizationState.getUpperQuantile())
+          quantizationState.getUpperQuantile() - mergedQuantizationState.getUpperQuantile())
           > limit) {
         return true;
       }
       if (Math.abs(
-              quantizationState.getLowerQuantile() - mergedQuantizationState.getLowerQuantile())
+          quantizationState.getLowerQuantile() - mergedQuantizationState.getLowerQuantile())
           > limit) {
         return true;
       }
@@ -378,7 +378,8 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
    * shift quantization buckets.
    *
    * @param existingQuantiles The existing quantiles for a segment
-   * @param newQuantiles The new quantiles for a segment, could be merged, or fully re-calculated
+   * @param newQuantiles      The new quantiles for a segment, could be merged, or fully
+   *                          re-calculated
    * @return true if the floating point values should be requantized
    */
   static boolean shouldRequantize(ScalarQuantizer existingQuantiles, ScalarQuantizer newQuantiles) {
@@ -418,6 +419,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
   }
 
   static class QuantizationFieldVectorWriter implements Accountable {
+
     private static final long SHALLOW_SIZE =
         shallowSizeOfInstance(QuantizationFieldVectorWriter.class);
     private final int dim;
@@ -505,12 +507,15 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
 
     @Override
     public long ramBytesUsed() {
-      if (floatVectors.size() == 0) return SHALLOW_SIZE;
+      if (floatVectors.size() == 0) {
+        return SHALLOW_SIZE;
+      }
       return SHALLOW_SIZE + (long) floatVectors.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
   }
 
   static class FloatVectorWrapper extends FloatVectorValues {
+
     private final List<float[]> vectorList;
     private final float[] copy;
     private final boolean normalize;
@@ -567,6 +572,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
   }
 
   private static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
+
     private final QuantizedByteVectorValues values;
 
     QuantizedByteVectorValueSub(MergeState.DocMap docMap, QuantizedByteVectorValues values) {
@@ -581,8 +587,11 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
     }
   }
 
-  /** Returns a merged view over all the segment's {@link QuantizedByteVectorValues}. */
+  /**
+   * Returns a merged view over all the segment's {@link QuantizedByteVectorValues}.
+   */
   static class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
+
     public static MergedQuantizedVectorValues mergeQuantizedByteVectorValues(
         FieldInfo fieldInfo, MergeState mergeState, ScalarQuantizer scalarQuantizer)
         throws IOException {
@@ -685,6 +694,7 @@ public final class VectorSandboxScalarQuantizedVectorsWriter implements Accounta
   }
 
   private static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
+
     private final FloatVectorValues values;
     private final ScalarQuantizer quantizer;
     private final byte[] quantizedVector;
