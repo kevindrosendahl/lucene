@@ -242,11 +242,13 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
   private void writeField(FieldWriter<?> fieldData, int maxDoc, long[] quantizedVecOffsetAndLen)
       throws IOException {
-    // write vector values
     long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-    switch (fieldData.fieldInfo.getVectorEncoding()) {
-      case BYTE -> writeByteVectors(fieldData);
-      case FLOAT32 -> writeFloat32Vectors(fieldData);
+    if (fieldData.isQuantized()) {
+      // write vector values
+      switch (fieldData.fieldInfo.getVectorEncoding()) {
+        case BYTE -> writeByteVectors(fieldData);
+        case FLOAT32 -> writeFloat32Vectors(fieldData);
+      }
     }
     long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
@@ -320,11 +322,14 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     }
 
     // write vector values
-    long vectorDataOffset =
-        switch (fieldData.fieldInfo.getVectorEncoding()) {
-          case BYTE -> writeSortedByteVectors(fieldData, ordMap);
-          case FLOAT32 -> writeSortedFloat32Vectors(fieldData, ordMap);
-        };
+    long vectorDataOffset = vectorData.getFilePointer();
+    if (fieldData.isQuantized()) {
+      vectorDataOffset =
+          switch (fieldData.fieldInfo.getVectorEncoding()) {
+            case BYTE -> writeSortedByteVectors(fieldData, ordMap);
+            case FLOAT32 -> writeSortedFloat32Vectors(fieldData, ordMap);
+          };
+    }
     long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
     // write graph
