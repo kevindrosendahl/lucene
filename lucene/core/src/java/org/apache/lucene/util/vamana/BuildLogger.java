@@ -46,69 +46,69 @@ public class BuildLogger {
   }
 
   public static void logAddNode(int node) {
-    wrap(() -> {
-      WRITER.write(counter() + " ADD " + node);
-      WRITER.newLine();
-    });
+//    wrap(() -> {
+//      WRITER.write(counter() + " ADD " + node);
+//      WRITER.newLine();
+//    });
   }
 
   public static void nothing() {}
 
   public static void logSelectedDiverse(List<Candidate> selected) {
-    if (selected.isEmpty()) {
-      return;
-    }
-
-    var bitset = new FixedBitSet(10000);
-    for (var candidate : selected) {
-      bitset.set(candidate.node());
-    }
-
-    logSelectedDiverse(bitset);
+//    if (selected.isEmpty()) {
+//      return;
+//    }
+//
+//    var bitset = new FixedBitSet(10000);
+//    for (var candidate : selected) {
+//      bitset.set(candidate.node());
+//    }
+//
+//    logSelectedDiverse(bitset);
   }
 
   public static void logSelectedDiverse(BitSet selected) {
-    if (selected.cardinality() == 0) {
-      return;
-    }
-
-    wrap(() -> {
-      WRITER.write(counter() + " SELECTED DIVERSE");
-      for (int i = selected.nextSetBit(0);
-          i != DocIdSetIterator.NO_MORE_DOCS;
-          i = selected.nextSetBit(i + 1)) {
-        int node = i;
-        WRITER.write(" " + node);
-
-        // nextSetBit will assert if you're past the end, so check ourselves
-        if (i + 1 >= selected.length()) {
-          break;
-        }
-      }
-
-      WRITER.newLine();
-    });
+//    if (selected.cardinality() == 0) {
+//      return;
+//    }
+//
+//    wrap(() -> {
+//      WRITER.write(counter() + " SELECTED DIVERSE");
+//      for (int i = selected.nextSetBit(0);
+//          i != DocIdSetIterator.NO_MORE_DOCS;
+//          i = selected.nextSetBit(i + 1)) {
+//        int node = i;
+//        WRITER.write(" " + node);
+//
+//        // nextSetBit will assert if you're past the end, so check ourselves
+//        if (i + 1 >= selected.length()) {
+//          break;
+//        }
+//      }
+//
+//      WRITER.newLine();
+//    });
   }
 
   public static void logBacklinked(int node) {
-    wrap(() -> {
-      WRITER.write(counter() + " BACKLINKED " + node);
-      WRITER.newLine();
-    });
+//    wrap(() -> {
+//      WRITER.write(counter() + " BACKLINKED " + node);
+//      WRITER.newLine();
+//    });
   }
 
   public static void logLink(int node, int neighbor, float score) {
-    wrap(() -> {
-      WRITER.write(counter() + " LINK " + node + " NEIGHBOR " + neighbor + " SCORE " + score);
-      WRITER.newLine();
-    });
+//    wrap(() -> {
+//      WRITER.write(counter() + " LINK " + node + " NEIGHBOR " + neighbor + " SCORE " + score);
+//      WRITER.newLine();
+//    });
   }
 
   public static void logPruned(int node) {
-    wrap(() -> {
-      WRITER.write(counter() + " PRUNED " + node);
-      WRITER.newLine();
-    });
+//    wrap(() -> {
+//      WRITER.write(counter() + " PRUNED " + node);
+//      WRITER.newLine();
+//    });
   }
 
   public static void flush() {
