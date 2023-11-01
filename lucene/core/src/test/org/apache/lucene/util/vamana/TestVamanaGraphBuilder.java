@@ -47,7 +47,16 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
 
   @Test
   public void compareGraphs() throws Exception {
-    var sandboxCodec =
+    var codec =
+        new Lucene99Codec() {
+          @Override
+          public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f,
+                null);
+          }
+        };
+
+    var quantizedCodec =
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
@@ -56,42 +65,71 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
           }
         };
 
-    try (var sandboxDirectory = new ByteBuffersDirectory()) {
-      var config =
-          new IndexWriterConfig()
-              .setCodec(sandboxCodec)
-              .setCommitOnClose(true)
-              .setUseCompoundFile(false);
-      try (var writer = new IndexWriter(sandboxDirectory, config)) {
-        for (var vector : VECTORS) {
-          var doc = new Document();
-          doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
-          writer.addDocument(doc);
+    try (var directory = new ByteBuffersDirectory()) {
+      try (var quantizedDirectory = new ByteBuffersDirectory()) {
+        var config =
+            new IndexWriterConfig()
+                .setCodec(codec)
+                .setCommitOnClose(true)
+                .setUseCompoundFile(false);
+        try (var writer = new IndexWriter(directory, config)) {
+          for (var vector : VECTORS) {
+            var doc = new Document();
+            doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
+            writer.addDocument(doc);
+          }
         }
-      }
 
-      var sandboxReader = DirectoryReader.open(sandboxDirectory);
-      var sandboxSearcher = new IndexSearcher(sandboxReader);
-      var sandboxLeafReader = sandboxReader.leaves().get(0).reader();
-      var sandboxPerFieldVectorReader =
-          (PerFieldKnnVectorsFormat.FieldsReader)
-              ((CodecReader) sandboxLeafReader).getVectorReader();
-      var sandboxVectorReader =
-          (VectorSandboxVamanaVectorsReader) sandboxPerFieldVectorReader.getFieldReader("vector");
+        var quantizedConfig =
+            new IndexWriterConfig()
+                .setCodec(quantizedCodec)
+                .setCommitOnClose(true)
+                .setUseCompoundFile(false);
+        try (var writer = new IndexWriter(quantizedDirectory, quantizedConfig)) {
+          for (var vector : VECTORS) {
+            var doc = new Document();
+            doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
+            writer.addDocument(doc);
+          }
+        }
 
-      var sandboxGraph = sandboxVectorReader.getGraph("vector");
-      var onHeapGraph = onHeapGraph();
+        var reader = DirectoryReader.open(directory);
+        var searcher = new IndexSearcher(reader);
+        var leafReader = reader.leaves().get(0).reader();
+        var perFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) leafReader).getVectorReader();
+        var vectorReader =
+            (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
 
-      System.out.println("sandboxGraph = " + sandboxGraph);
-      System.out.println("onHeapGraph = " + onHeapGraph);
+        var quantizedReader = DirectoryReader.open(directory);
+        var quantizedSearcher = new IndexSearcher(quantizedReader);
+        var quantizedLeafReader = quantizedReader.leaves().get(0).reader();
+        var quantizedPerFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) quantizedLeafReader).getVectorReader();
+        var quantizedVectorReader =
+            (VectorSandboxVamanaVectorsReader) quantizedPerFieldVectorReader.getFieldReader("vector");
+
+        var graph = vectorReader.getGraph("vector");
+        var quantizedGraph = quantizedVectorReader.getGraph("vector");
+        var onHeapGraph = onHeapGraph();
 
 //      sandboxGraph.seek(0);
 //      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
 
-      var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 5);
-      Arrays.stream(sandboxSearcher.search(query, 5).scoreDocs)
-          .map(scoreDoc -> scoreDoc.doc)
-          .forEach(i -> System.out.println("i = " + i));
+        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 5);
+
+        System.out.println("regular");
+        Arrays.stream(searcher.search(query, 5).scoreDocs)
+            .map(scoreDoc -> scoreDoc.doc)
+            .forEach(i -> System.out.println("i = " + i));
+
+        System.out.println("quantized");
+        Arrays.stream(quantizedSearcher.search(query, 5).scoreDocs)
+            .map(scoreDoc -> scoreDoc.doc)
+            .forEach(i -> System.out.println("i = " + i));
+      }
     }
   }
 
