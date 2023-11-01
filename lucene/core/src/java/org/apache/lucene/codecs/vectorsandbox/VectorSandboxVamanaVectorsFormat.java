@@ -152,6 +152,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
    */
   public static final int DEFAULT_BEAM_WIDTH = 100;
 
+  public static final float DEFAULT_ALPHA = 1.2f;
+
   /** Default to use single thread merge */
   public static final int DEFAULT_NUM_MERGE_WORKER = 1;
 
@@ -171,6 +173,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
    */
   private final int beamWidth;
 
+  private final float alpha;
+
   /** Should this codec scalar quantize float32 vectors and use this format */
   private final VectorSandboxScalarQuantizedVectorsFormat scalarQuantizedVectorsFormat;
 
@@ -179,12 +183,15 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
 
   /** Constructs a format using default graph construction parameters */
   public VectorSandboxVamanaVectorsFormat() {
-    this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null);
+    this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_ALPHA, null);
   }
 
   public VectorSandboxVamanaVectorsFormat(
-      int maxConn, int beamWidth, VectorSandboxScalarQuantizedVectorsFormat scalarQuantize) {
-    this(maxConn, beamWidth, scalarQuantize, DEFAULT_NUM_MERGE_WORKER, null);
+      int maxConn,
+      int beamWidth,
+      float alpha,
+      VectorSandboxScalarQuantizedVectorsFormat scalarQuantize) {
+    this(maxConn, beamWidth, alpha, scalarQuantize, DEFAULT_NUM_MERGE_WORKER, null);
   }
 
   /**
@@ -193,8 +200,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
    * @param maxConn the maximum number of connections to a node in the Vamana graph
    * @param beamWidth the size of the queue maintained during graph construction.
    */
-  public VectorSandboxVamanaVectorsFormat(int maxConn, int beamWidth) {
-    this(maxConn, beamWidth, null);
+  public VectorSandboxVamanaVectorsFormat(int maxConn, int beamWidth, float alpha) {
+    this(maxConn, beamWidth, alpha, null);
   }
 
   /**
@@ -211,6 +218,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   public VectorSandboxVamanaVectorsFormat(
       int maxConn,
       int beamWidth,
+      float alpha,
       VectorSandboxScalarQuantizedVectorsFormat scalarQuantize,
       int numMergeWorkers,
       ExecutorService mergeExec) {
@@ -239,6 +247,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
     }
     this.maxConn = maxConn;
     this.beamWidth = beamWidth;
+    this.alpha = alpha;
     this.scalarQuantizedVectorsFormat = scalarQuantize;
     this.numMergeWorkers = numMergeWorkers;
     this.mergeExec = mergeExec;
@@ -247,7 +256,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   @Override
   public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
     return new VectorSandboxVamanaVectorsWriter(
-        state, maxConn, beamWidth, scalarQuantizedVectorsFormat, numMergeWorkers, mergeExec);
+        state, maxConn, beamWidth, alpha, scalarQuantizedVectorsFormat, numMergeWorkers, mergeExec);
   }
 
   @Override

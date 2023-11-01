@@ -19,7 +19,6 @@ package org.apache.lucene.codecs.vectorsandbox;
 
 import java.io.IOException;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.store.IndexInput;
 

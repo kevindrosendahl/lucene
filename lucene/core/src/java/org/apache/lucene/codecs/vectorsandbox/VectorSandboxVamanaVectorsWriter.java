@@ -32,9 +32,6 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
-import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
-import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
@@ -77,6 +74,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   private final IndexOutput meta, vectorData, quantizedVectorData, vectorIndex;
   private final int M;
   private final int beamWidth;
+  private final float alpha;
   private final VectorSandboxScalarQuantizedVectorsWriter quantizedVectorsWriter;
   private final int numMergeWorkers;
   private final ExecutorService mergeExec;
@@ -88,12 +86,14 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       SegmentWriteState state,
       int M,
       int beamWidth,
+      float alpha,
       VectorSandboxScalarQuantizedVectorsFormat quantizedVectorsFormat,
       int numMergeWorkers,
       ExecutorService mergeExec)
       throws IOException {
     this.M = M;
     this.beamWidth = beamWidth;
+    this.alpha = alpha;
     this.numMergeWorkers = numMergeWorkers;
     this.mergeExec = mergeExec;
     segmentWriteState = state;
@@ -182,7 +182,12 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     }
     FieldWriter<?> newField =
         FieldWriter.create(
-            fieldInfo, M, beamWidth, segmentWriteState.infoStream, quantizedVectorFieldWriter);
+            fieldInfo,
+            M,
+            beamWidth,
+            alpha,
+            segmentWriteState.infoStream,
+            quantizedVectorFieldWriter);
     fields.add(newField);
     return newField;
   }
@@ -247,7 +252,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     // write graph
     long vectorIndexOffset = vectorIndex.getFilePointer();
     OnHeapVamanaGraph graph = fieldData.getGraph();
-    int[][] graphLevelNodeOffsets = writeGraph(graph);
+    int[] nodeOffsets = writeGraph(fieldData);
     long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
 
     writeMeta(
@@ -264,7 +269,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         vectorIndexLength,
         fieldData.docsWithField,
         graph,
-        graphLevelNodeOffsets);
+        nodeOffsets);
   }
 
   private void writeFloat32Vectors(FieldWriter<?> fieldData) throws IOException {
@@ -324,9 +329,16 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     // write graph
     long vectorIndexOffset = vectorIndex.getFilePointer();
     OnHeapVamanaGraph graph = fieldData.getGraph();
-    int[][] graphLevelNodeOffsets = graph == null ? new int[0][] : new int[graph.numLevels()][];
+    int[] nodeOffsets = graph == null ? new int[0] : new int[graph.size()];
     VamanaGraph mockGraph =
-        reconstructAndWriteGraph(graph, ordMap, oldOrdMap, graphLevelNodeOffsets);
+        reconstructAndWriteGraph(
+            fieldData.fieldInfo.getVectorEncoding(),
+            fieldData.vectors,
+            fieldData.dim,
+            graph,
+            ordMap,
+            oldOrdMap,
+            nodeOffsets);
     long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
 
     writeMeta(
@@ -343,7 +355,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         vectorIndexLength,
         newDocsWithField,
         mockGraph,
-        graphLevelNodeOffsets);
+        nodeOffsets);
   }
 
   private long writeSortedFloat32Vectors(FieldWriter<?> fieldData, int[] ordMap)
@@ -376,47 +388,59 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    * @param graph The current on heap graph
    * @param newToOldMap the new node ids indexed to the old node ids
    * @param oldToNewMap the old node ids indexed to the new node ids
-   * @param levelNodeOffsets where to place the new offsets for the nodes in the vector index.
+   * @param nodeOffsets where to place the new offsets for the nodes in the vector index.
    * @return The graph
    * @throws IOException if writing to vectorIndex fails
    */
   private VamanaGraph reconstructAndWriteGraph(
-      OnHeapVamanaGraph graph, int[] newToOldMap, int[] oldToNewMap, int[][] levelNodeOffsets)
+      VectorEncoding encoding,
+      List<?> vectors,
+      int dimensions,
+      OnHeapVamanaGraph graph,
+      int[] newToOldMap,
+      int[] oldToNewMap,
+      int[] nodeOffsets)
       throws IOException {
-    if (graph == null) return null;
+    if (graph == null) {
+      return null;
+    }
 
-    List<int[]> nodesByLevel = new ArrayList<>(graph.numLevels());
-    nodesByLevel.add(null);
+    ByteBuffer vectorBuffer =
+        encoding == VectorEncoding.FLOAT32
+            ? ByteBuffer.allocate(dimensions * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            : null;
 
     int maxOrd = graph.size();
-    NodesIterator nodesOnLevel0 = graph.getNodesOnLevel(0);
-    levelNodeOffsets[0] = new int[nodesOnLevel0.size()];
-    while (nodesOnLevel0.hasNext()) {
-      int node = nodesOnLevel0.nextInt();
-      NeighborArray neighbors = graph.getNeighbors(0, newToOldMap[node]);
+    NodesIterator nodes = graph.getNodes();
+    while (nodes.hasNext()) {
       long offset = vectorIndex.getFilePointer();
+
+      int node = nodes.nextInt();
+
+      // Write the full fidelity vector
+      // TODO: support scalar quantization
+      switch (encoding) {
+        case BYTE -> {
+          byte[] v = (byte[]) vectors.get(node);
+          vectorIndex.writeBytes(v, v.length);
+        }
+        case FLOAT32 -> {
+          float[] v = (float[]) vectors.get(node);
+          vectorBuffer.asFloatBuffer().put(v);
+          vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+        }
+      }
+
+      NeighborArray neighbors = graph.getNeighbors(newToOldMap[node]);
       reconstructAndWriteNeighbours(neighbors, oldToNewMap, maxOrd);
-      levelNodeOffsets[0][node] = Math.toIntExact(vectorIndex.getFilePointer() - offset);
+
+      if (encoding == VectorEncoding.FLOAT32) {
+        vectorIndex.alignFilePointer(Float.BYTES);
+      }
+
+      nodeOffsets[node] = Math.toIntExact(vectorIndex.getFilePointer() - offset);
     }
 
-    for (int level = 1; level < graph.numLevels(); level++) {
-      NodesIterator nodesOnLevel = graph.getNodesOnLevel(level);
-      int[] newNodes = new int[nodesOnLevel.size()];
-      for (int n = 0; nodesOnLevel.hasNext(); n++) {
-        newNodes[n] = oldToNewMap[nodesOnLevel.nextInt()];
-      }
-      Arrays.sort(newNodes);
-      nodesByLevel.add(newNodes);
-      levelNodeOffsets[level] = new int[newNodes.length];
-      int nodeOffsetIndex = 0;
-      for (int node : newNodes) {
-        NeighborArray neighbors = graph.getNeighbors(level, newToOldMap[node]);
-        long offset = vectorIndex.getFilePointer();
-        reconstructAndWriteNeighbours(neighbors, oldToNewMap, maxOrd);
-        levelNodeOffsets[level][nodeOffsetIndex++] =
-            Math.toIntExact(vectorIndex.getFilePointer() - offset);
-      }
-    }
     return new VamanaGraph() {
       @Override
       public int nextNeighbor() {
@@ -424,7 +448,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
 
       @Override
-      public void seek(int level, int target) {
+      public void seek(int target) {
         throw new UnsupportedOperationException("Not supported on a mock graph");
       }
 
@@ -434,22 +458,13 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
 
       @Override
-      public int numLevels() {
-        return graph.numLevels();
-      }
-
-      @Override
       public int entryNode() {
-        throw new UnsupportedOperationException("Not supported on a mock graph");
+        return oldToNewMap[graph.entryNode()];
       }
 
       @Override
-      public NodesIterator getNodesOnLevel(int level) {
-        if (level == 0) {
-          return graph.getNodesOnLevel(0);
-        } else {
-          return new ArrayNodesIterator(nodesByLevel.get(level), nodesByLevel.get(level).length);
-        }
+      public NodesIterator getNodes() {
+        return graph.getNodes();
       }
     };
   }
@@ -594,7 +609,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       // doesn't need to know docIds
       // TODO: separate random access vector values from DocIdSetIterator?
       OnHeapVamanaGraph graph = null;
-      int[][] vectorIndexNodeOffsets = null;
+      int[] vectorIndexNodeOffsets = null;
       if (docsWithField.cardinality() != 0) {
         // build graph
         VamanaGraphMerger merger = createGraphMerger(fieldInfo, scorerSupplier);
@@ -612,7 +627,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         graph =
             merger.merge(
                 mergedVectorIterator, segmentWriteState.infoStream, docsWithField.cardinality());
-        vectorIndexNodeOffsets = writeGraph(graph);
+        // FIXME: pass in vectors for graph construction
+        throw new UnsupportedOperationException("cannot merge");
+        //        vectorIndexNodeOffsets = writeGraph(graph);
       }
       long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
       writeMeta(
@@ -645,41 +662,68 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   }
 
   /**
-   * @param graph Write the graph in a compressed format
    * @return The non-cumulative offsets for the nodes. Should be used to create cumulative offsets.
    * @throws IOException if writing to vectorIndex fails
    */
-  private int[][] writeGraph(OnHeapVamanaGraph graph) throws IOException {
-    if (graph == null) return new int[0][0];
-    // write vectors' neighbours on each level into the vectorIndex file
-    int countOnLevel0 = graph.size();
-    int[][] offsets = new int[graph.numLevels()][];
-    for (int level = 0; level < graph.numLevels(); level++) {
-      int[] sortedNodes = getSortedNodes(graph.getNodesOnLevel(level));
-      offsets[level] = new int[sortedNodes.length];
-      int nodeOffsetId = 0;
-      for (int node : sortedNodes) {
-        NeighborArray neighbors = graph.getNeighbors(level, node);
-        int size = neighbors.size();
-        // Write size in VInt as the neighbors list is typically small
-        long offsetStart = vectorIndex.getFilePointer();
-        vectorIndex.writeVInt(size);
-        // Destructively modify; it's ok we are discarding it after this
-        int[] nnodes = neighbors.node();
-        Arrays.sort(nnodes, 0, size);
-        // Now that we have sorted, do delta encoding to minimize the required bits to store the
-        // information
-        for (int i = size - 1; i > 0; --i) {
-          assert nnodes[i] < countOnLevel0 : "node too large: " + nnodes[i] + ">=" + countOnLevel0;
-          nnodes[i] -= nnodes[i - 1];
-        }
-        for (int i = 0; i < size; i++) {
-          vectorIndex.writeVInt(nnodes[i]);
-        }
-        offsets[level][nodeOffsetId++] =
-            Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
-      }
+  private int[] writeGraph(FieldWriter<?> fieldData) throws IOException {
+    OnHeapVamanaGraph graph = fieldData.getGraph();
+    if (graph == null) {
+      return new int[0];
     }
+
+    VectorEncoding encoding = fieldData.fieldInfo.getVectorEncoding();
+    ByteBuffer vectorBuffer =
+        encoding == VectorEncoding.FLOAT32
+            ? ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            : null;
+
+    int[] sortedNodes = getSortedNodes(graph.getNodes());
+    int[] offsets = new int[sortedNodes.length];
+    int nodeOffsetId = 0;
+
+    for (int node : sortedNodes) {
+      long offsetStart = vectorIndex.getFilePointer();
+
+      // Write the full fidelity vector
+      // TODO: support scalar quantization
+      switch (encoding) {
+        case BYTE -> {
+          byte[] v = (byte[]) fieldData.vectors.get(node);
+          vectorIndex.writeBytes(v, v.length);
+        }
+        case FLOAT32 -> {
+          float[] v = (float[]) fieldData.vectors.get(node);
+          vectorBuffer.asFloatBuffer().put(v);
+          vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+        }
+      }
+
+      NeighborArray neighbors = graph.getNeighbors(node);
+      int size = neighbors.size();
+
+      // Write size in VInt as the neighbors list is typically small
+      vectorIndex.writeVInt(size);
+
+      // Encode neighbors as vints.
+      int[] nnodes = neighbors.node();
+      Arrays.sort(nnodes, 0, size);
+
+      // Convert neighbors to their deltas from the previous neighbor.
+      for (int i = size - 1; i > 0; --i) {
+        nnodes[i] -= nnodes[i - 1];
+      }
+      for (int i = 0; i < size; i++) {
+        vectorIndex.writeVInt(nnodes[i]);
+      }
+
+      if (encoding == VectorEncoding.FLOAT32) {
+        vectorIndex.alignFilePointer(Float.BYTES);
+      }
+
+      var offset = Math.toIntExact(vectorIndex.getFilePointer() - offsetStart);
+      offsets[nodeOffsetId++] = offset;
+    }
+
     return offsets;
   }
 
@@ -696,9 +740,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       FieldInfo fieldInfo, RandomVectorScorerSupplier scorerSupplier) {
     if (mergeExec != null) {
       return new ConcurrentVamanaMerger(
-          fieldInfo, scorerSupplier, M, beamWidth, mergeExec, numMergeWorkers);
+          fieldInfo, scorerSupplier, M, beamWidth, alpha, mergeExec, numMergeWorkers);
     }
-    return new IncrementalVamanaGraphMerger(fieldInfo, scorerSupplier, M, beamWidth);
+    return new IncrementalVamanaGraphMerger(fieldInfo, scorerSupplier, M, beamWidth, alpha);
   }
 
   private void writeMeta(
@@ -715,7 +759,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long vectorIndexLength,
       DocsWithFieldSet docsWithField,
       VamanaGraph graph,
-      int[][] graphLevelNodeOffsets)
+      int[] graphNodeOffsets)
       throws IOException {
     meta.writeInt(field.number);
     meta.writeInt(field.getVectorEncoding().ordinal());
@@ -762,40 +806,17 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     if (graph == null) {
       meta.writeVInt(0);
     } else {
-      meta.writeVInt(graph.numLevels());
-      long valueCount = 0;
-      for (int level = 0; level < graph.numLevels(); level++) {
-        NodesIterator nodesOnLevel = graph.getNodesOnLevel(level);
-        valueCount += nodesOnLevel.size();
-        if (level > 0) {
-          int[] nol = new int[nodesOnLevel.size()];
-          int numberConsumed = nodesOnLevel.consume(nol);
-          Arrays.sort(nol);
-          assert numberConsumed == nodesOnLevel.size();
-          meta.writeVInt(nol.length); // number of nodes on a level
-          for (int i = nodesOnLevel.size() - 1; i > 0; --i) {
-            nol[i] -= nol[i - 1];
-          }
-          for (int n : nol) {
-            assert n >= 0 : "delta encoding for nodes failed; expected nodes to be sorted";
-            meta.writeVInt(n);
-          }
-        } else {
-          assert nodesOnLevel.size() == count : "Level 0 expects to have all nodes";
-        }
-      }
+      meta.writeVInt(graph.entryNode());
       long start = vectorIndex.getFilePointer();
       meta.writeLong(start);
       meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
       final DirectMonotonicWriter memoryOffsetsWriter =
           DirectMonotonicWriter.getInstance(
-              meta, vectorIndex, valueCount, DIRECT_MONOTONIC_BLOCK_SHIFT);
+              meta, vectorIndex, graph.size(), DIRECT_MONOTONIC_BLOCK_SHIFT);
       long cumulativeOffsetSum = 0;
-      for (int[] levelOffsets : graphLevelNodeOffsets) {
-        for (int v : levelOffsets) {
-          memoryOffsetsWriter.add(cumulativeOffsetSum);
-          cumulativeOffsetSum += v;
-        }
+      for (int v : graphNodeOffsets) {
+        memoryOffsetsWriter.add(cumulativeOffsetSum);
+        cumulativeOffsetSum += v;
       }
       memoryOffsetsWriter.finish();
       meta.writeLong(vectorIndex.getFilePointer() - start);
@@ -848,6 +869,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   }
 
   private abstract static class FieldWriter<T> extends KnnFieldVectorsWriter<T> {
+
     private final FieldInfo fieldInfo;
     private final int dim;
     private final DocsWithFieldSet docsWithField;
@@ -863,18 +885,20 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         int M,
         int beamWidth,
+        float alpha,
         InfoStream infoStream,
         VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter writer)
         throws IOException {
       int dim = fieldInfo.getVectorDimension();
       return switch (fieldInfo.getVectorEncoding()) {
-        case BYTE -> new FieldWriter<byte[]>(fieldInfo, M, beamWidth, infoStream, writer) {
+        case BYTE -> new FieldWriter<byte[]>(fieldInfo, M, beamWidth, alpha, infoStream, writer) {
           @Override
           public byte[] copyValue(byte[] value) {
             return ArrayUtil.copyOfSubArray(value, 0, dim);
           }
         };
-        case FLOAT32 -> new FieldWriter<float[]>(fieldInfo, M, beamWidth, infoStream, writer) {
+        case FLOAT32 -> new FieldWriter<float[]>(
+            fieldInfo, M, beamWidth, alpha, infoStream, writer) {
           @Override
           public float[] copyValue(float[] value) {
             return ArrayUtil.copyOfSubArray(value, 0, dim);
@@ -888,6 +912,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         int M,
         int beamWidth,
+        float alpha,
         InfoStream infoStream,
         VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter quantizedWriter)
         throws IOException {
@@ -914,7 +939,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
                 (RandomAccessVectorValues<float[]>) raVectors,
                 fieldInfo.getVectorSimilarityFunction());
           };
-      vamanaGraphBuilder = VamanaGraphBuilder.create(scorerSupplier, M, beamWidth);
+      vamanaGraphBuilder = VamanaGraphBuilder.create(scorerSupplier, M, beamWidth, alpha);
       vamanaGraphBuilder.setInfoStream(infoStream);
     }
 
@@ -949,7 +974,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public long ramBytesUsed() {
-      if (vectors.size() == 0) return 0;
+      if (vectors.size() == 0) {
+        return 0;
+      }
       long quantizationSpace = quantizedWriter != null ? quantizedWriter.ramBytesUsed() : 0L;
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
@@ -979,6 +1006,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   }
 
   private static class RAVectorValues<T> implements RandomAccessVectorValues<T> {
+
     private final List<T> vectors;
     private final int dim;
 

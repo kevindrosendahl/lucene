@@ -20,15 +20,11 @@ package org.apache.lucene.codecs.vectorsandbox;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.VamanaGraphProvider;
-import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
-import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
-import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
@@ -50,6 +46,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.ScalarQuantizer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
+import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
 import org.apache.lucene.util.vamana.VamanaGraph;
 import org.apache.lucene.util.vamana.VamanaGraphSearcher;
@@ -275,6 +272,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + " expected: "
               + VectorEncoding.FLOAT32);
     }
+    // FIXME: get values from graph
     return OffHeapFloatVectorValues.load(
         fieldEntry.ordToDoc,
         fieldEntry.vectorEncoding,
@@ -296,6 +294,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + " expected: "
               + VectorEncoding.FLOAT32);
     }
+    // FIXME: get values from graph
     return OffHeapByteVectorValues.load(
         fieldEntry.ordToDoc,
         fieldEntry.vectorEncoding,
@@ -335,21 +334,17 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           getGraph(fieldEntry),
           vectorValues.getAcceptOrds(acceptDocs));
     } else {
-      OffHeapFloatVectorValues vectorValues =
-          OffHeapFloatVectorValues.load(
-              fieldEntry.ordToDoc,
-              fieldEntry.vectorEncoding,
-              fieldEntry.dimension,
-              fieldEntry.vectorDataOffset,
-              fieldEntry.vectorDataLength,
-              vectorData);
+      InGraphOffHeapFloatVectorValues vectorValues =
+          new InGraphOffHeapFloatVectorValues(fieldEntry, vectorIndex);
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
       VamanaGraphSearcher.search(
           scorer,
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
           getGraph(fieldEntry),
-          vectorValues.getAcceptOrds(acceptDocs));
+          // FIXME: support filtered
+          //          vectorValues.getAcceptOrds(acceptDocs));
+          acceptDocs);
     }
   }
 
@@ -364,21 +359,17 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       return;
     }
 
-    OffHeapByteVectorValues vectorValues =
-        OffHeapByteVectorValues.load(
-            fieldEntry.ordToDoc,
-            fieldEntry.vectorEncoding,
-            fieldEntry.dimension,
-            fieldEntry.vectorDataOffset,
-            fieldEntry.vectorDataLength,
-            vectorData);
+    InGraphOffHeapByteVectorValues vectorValues =
+        new InGraphOffHeapByteVectorValues(fieldEntry, vectorIndex);
     RandomVectorScorer scorer =
         RandomVectorScorer.createBytes(vectorValues, fieldEntry.similarityFunction, target);
     VamanaGraphSearcher.search(
         scorer,
         new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
         getGraph(fieldEntry),
-        vectorValues.getAcceptOrds(acceptDocs));
+        // FIXME: support filtered
+        //        vectorValues.getAcceptOrds(acceptDocs));
+        acceptDocs);
   }
 
   @Override
@@ -430,6 +421,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   }
 
   static class FieldEntry implements Accountable {
+
     private static final long SHALLOW_SIZE =
         RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class);
     final VectorSimilarityFunction similarityFunction;
@@ -439,11 +431,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     final long vectorIndexOffset;
     final long vectorIndexLength;
     final int M;
-    final int numLevels;
+    final int entryNode;
     final int dimension;
     final int size;
-    final int[][] nodesByLevel;
-    // for each level the start offsets in vectorIndex file from where to read neighbours
     final DirectMonotonicReader.Meta offsetsMeta;
     final long offsetsOffset;
     final int offsetsBlockShift;
@@ -493,30 +483,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       }
       ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(input, size);
 
-      // read nodes by level
+      // read node offsets
       M = input.readVInt();
-      numLevels = input.readVInt();
-      nodesByLevel = new int[numLevels][];
-      long numberOfOffsets = 0;
-      for (int level = 0; level < numLevels; level++) {
-        if (level > 0) {
-          int numNodesOnLevel = input.readVInt();
-          numberOfOffsets += numNodesOnLevel;
-          nodesByLevel[level] = new int[numNodesOnLevel];
-          nodesByLevel[level][0] = input.readVInt();
-          for (int i = 1; i < numNodesOnLevel; i++) {
-            nodesByLevel[level][i] = nodesByLevel[level][i - 1] + input.readVInt();
-          }
-        } else {
-          numberOfOffsets += size;
-        }
-      }
-      if (numberOfOffsets > 0) {
+      if (size > 0) {
+        entryNode = input.readVInt();
         offsetsOffset = input.readLong();
         offsetsBlockShift = input.readVInt();
-        offsetsMeta = DirectMonotonicReader.loadMeta(input, numberOfOffsets, offsetsBlockShift);
+        offsetsMeta = DirectMonotonicReader.loadMeta(input, size, offsetsBlockShift);
         offsetsLength = input.readLong();
       } else {
+        entryNode = -1;
         offsetsOffset = 0;
         offsetsBlockShift = 0;
         offsetsMeta = null;
@@ -535,7 +511,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     @Override
     public long ramBytesUsed() {
       return SHALLOW_SIZE
-          + Arrays.stream(nodesByLevel).mapToLong(nodes -> RamUsageEstimator.sizeOf(nodes)).sum()
           + RamUsageEstimator.sizeOf(ordToDoc)
           + (quantizedOrdToDoc == null ? 0 : RamUsageEstimator.sizeOf(quantizedOrdToDoc))
           + RamUsageEstimator.sizeOf(offsetsMeta);
@@ -547,48 +522,40 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
-    final int[][] nodesByLevel;
-    final int numLevels;
     final int entryNode;
     final int size;
+    final int dimensions;
+    final VectorEncoding encoding;
     int arcCount;
     int arcUpTo;
     int arc;
-    private final DirectMonotonicReader graphLevelNodeOffsets;
-    private final long[] graphLevelNodeIndexOffsets;
-    // Allocated to be M*2 to track the current neighbors being explored
+    private final DirectMonotonicReader graphNodeOffsets;
+    // Allocated to be M to track the current neighbors being explored
     private final int[] currentNeighborsBuffer;
 
     OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
       this.dataIn =
           vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
-      this.nodesByLevel = entry.nodesByLevel;
-      this.numLevels = entry.numLevels;
-      this.entryNode = numLevels > 1 ? nodesByLevel[numLevels - 1][0] : 0;
+      this.entryNode = entry.entryNode;
       this.size = entry.size();
+      this.dimensions = entry.dimension;
+      this.encoding = entry.vectorEncoding;
       final RandomAccessInput addressesData =
           vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
-      this.graphLevelNodeOffsets =
-          DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
-      this.currentNeighborsBuffer = new int[entry.M * 2];
-      graphLevelNodeIndexOffsets = new long[numLevels];
-      graphLevelNodeIndexOffsets[0] = 0;
-      for (int i = 1; i < numLevels; i++) {
-        // nodesByLevel is `null` for the zeroth level as we know its size
-        int nodeCount = nodesByLevel[i - 1] == null ? size : nodesByLevel[i - 1].length;
-        graphLevelNodeIndexOffsets[i] = graphLevelNodeIndexOffsets[i - 1] + nodeCount;
-      }
+      this.graphNodeOffsets = DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
+      this.currentNeighborsBuffer = new int[entry.M];
     }
 
     @Override
-    public void seek(int level, int targetOrd) throws IOException {
-      int targetIndex =
-          level == 0
-              ? targetOrd
-              : Arrays.binarySearch(nodesByLevel[level], 0, nodesByLevel[level].length, targetOrd);
-      assert targetIndex >= 0;
+    public void seek(int targetOrd) throws IOException {
+      assert targetOrd >= 0;
       // unsafe; no bounds checking
-      dataIn.seek(graphLevelNodeOffsets.get(targetIndex + graphLevelNodeIndexOffsets[level]));
+
+      // seek to the [vector | adjacency list] for this ordinal, then seek past the vector.
+      var targetOffset = graphNodeOffsets.get(targetOrd);
+      var vectorSize = this.dimensions * this.encoding.byteSize;
+      dataIn.seek(targetOffset + vectorSize);
+
       arcCount = dataIn.readVInt();
       if (arcCount > 0) {
         currentNeighborsBuffer[0] = dataIn.readVInt();
@@ -616,22 +583,106 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
 
     @Override
-    public int numLevels() throws IOException {
-      return numLevels;
-    }
-
-    @Override
     public int entryNode() throws IOException {
       return entryNode;
     }
 
     @Override
-    public NodesIterator getNodesOnLevel(int level) {
-      if (level == 0) {
-        return new ArrayNodesIterator(size());
-      } else {
-        return new ArrayNodesIterator(nodesByLevel[level], nodesByLevel[level].length);
-      }
+    public NodesIterator getNodes() {
+      return new ArrayNodesIterator(size());
+    }
+  }
+
+  private static class InGraphOffHeapFloatVectorValues
+      implements RandomAccessVectorValues<float[]> {
+
+    final IndexInput dataIn;
+    final int size;
+    final int dimensions;
+    private final DirectMonotonicReader graphLevelNodeOffsets;
+
+    InGraphOffHeapFloatVectorValues(FieldEntry entry, IndexInput vectorIndex) throws IOException {
+      this.dataIn =
+          vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
+      this.size = entry.size;
+      this.dimensions = entry.dimension;
+      final RandomAccessInput addressesData =
+          vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
+      this.graphLevelNodeOffsets =
+          DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
+    }
+
+    @Override
+    public int size() {
+      return size;
+    }
+
+    @Override
+    public int dimension() {
+      return dimensions;
+    }
+
+    @Override
+    public float[] vectorValue(int targetOrd) throws IOException {
+      // unsafe; no bounds checking
+
+      long targetOffset = graphLevelNodeOffsets.get(targetOrd);
+      dataIn.seek(targetOffset);
+
+      float[] vector = new float[dimensions];
+      dataIn.readFloats(vector, 0, dimensions);
+      return vector;
+    }
+
+    @Override
+    public RandomAccessVectorValues<float[]> copy() throws IOException {
+      return this;
+    }
+  }
+
+  private static class InGraphOffHeapByteVectorValues implements RandomAccessVectorValues<byte[]> {
+
+    final IndexInput dataIn;
+    final int size;
+    final int dimensions;
+    private final DirectMonotonicReader graphLevelNodeOffsets;
+
+    InGraphOffHeapByteVectorValues(FieldEntry entry, IndexInput vectorIndex) throws IOException {
+      this.dataIn =
+          vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
+      this.size = entry.size;
+      this.dimensions = entry.dimension;
+      final RandomAccessInput addressesData =
+          vectorIndex.randomAccessSlice(entry.offsetsOffset, entry.offsetsLength);
+      this.graphLevelNodeOffsets =
+          DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
+    }
+
+    @Override
+    public int size() {
+      return size;
+    }
+
+    @Override
+    public int dimension() {
+      return dimensions;
+    }
+
+    @Override
+    public byte[] vectorValue(int targetOrd) throws IOException {
+      // unsafe; no bounds checking
+
+      long targetOffset = graphLevelNodeOffsets.get(targetOrd);
+      dataIn.seek(targetOffset);
+
+      byte[] vector = new byte[dimensions];
+      dataIn.readBytes(vector, 0, dimensions);
+      return vector;
+    }
+
+    @Override
+    public RandomAccessVectorValues<byte[]> copy() throws IOException {
+      return this;
     }
   }
 }
