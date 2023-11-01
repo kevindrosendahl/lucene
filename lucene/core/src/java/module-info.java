@@ -54,6 +54,7 @@ module org.apache.lucene.core {
   exports org.apache.lucene.util.hppc;
   exports org.apache.lucene.util.mutable;
   exports org.apache.lucene.util.packed;
+  exports org.apache.lucene.util.vamana;
 
   // Only export internal packages to the test framework.
   exports org.apache.lucene.internal.tests to
