@@ -194,27 +194,27 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + fieldEntry.dimension);
     }
 
-    int byteSize =
-        switch (info.getVectorEncoding()) {
-          case BYTE -> Byte.BYTES;
-          case FLOAT32 -> Float.BYTES;
-        };
-    long vectorBytes = Math.multiplyExact((long) dimension, byteSize);
-    long numBytes = Math.multiplyExact(vectorBytes, fieldEntry.size);
-    if (numBytes != fieldEntry.vectorDataLength) {
-      throw new IllegalStateException(
-          "Vector data length "
-              + fieldEntry.vectorDataLength
-              + " not matching size="
-              + fieldEntry.size
-              + " * dim="
-              + dimension
-              + " * byteSize="
-              + byteSize
-              + " = "
-              + numBytes);
-    }
     if (fieldEntry.hasQuantizedVectors()) {
+      int byteSize =
+          switch (info.getVectorEncoding()) {
+            case BYTE -> Byte.BYTES;
+            case FLOAT32 -> Float.BYTES;
+          };
+      long vectorBytes = Math.multiplyExact((long) dimension, byteSize);
+      long numBytes = Math.multiplyExact(vectorBytes, fieldEntry.size);
+      if (numBytes != fieldEntry.vectorDataLength) {
+        throw new IllegalStateException(
+            "Vector data length "
+                + fieldEntry.vectorDataLength
+                + " not matching size="
+                + fieldEntry.size
+                + " * dim="
+                + dimension
+                + " * byteSize="
+                + byteSize
+                + " = "
+                + numBytes);
+      }
       VectorSandboxScalarQuantizedVectorsReader.validateFieldEntry(
           info, fieldEntry.dimension, fieldEntry.size, fieldEntry.quantizedVectorDataLength);
     }
@@ -272,7 +272,18 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + " expected: "
               + VectorEncoding.FLOAT32);
     }
-    return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
+
+    if (!fieldEntry.isQuantized) {
+      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
+    }
+
+    return OffHeapFloatVectorValues.load(
+        fieldEntry.ordToDoc,
+        fieldEntry.vectorEncoding,
+        fieldEntry.dimension,
+        fieldEntry.vectorDataOffset,
+        fieldEntry.vectorDataLength,
+        vectorData);
   }
 
   @Override
@@ -287,7 +298,18 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + " expected: "
               + VectorEncoding.FLOAT32);
     }
-    return InGraphOffHeapBinaryVectorValues.load(fieldEntry, vectorIndex);
+
+    if (!fieldEntry.isQuantized) {
+      return InGraphOffHeapBinaryVectorValues.load(fieldEntry, vectorIndex);
+    }
+
+    return OffHeapByteVectorValues.load(
+        fieldEntry.ordToDoc,
+        fieldEntry.vectorEncoding,
+        fieldEntry.dimension,
+        fieldEntry.vectorDataOffset,
+        fieldEntry.vectorDataLength,
+        vectorData);
   }
 
   @Override
