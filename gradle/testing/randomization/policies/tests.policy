@@ -31,6 +31,9 @@ grant {
   permission java.io.FilePermission "${java.io.tmpdir}", "read,write";
   permission java.io.FilePermission "${java.io.tmpdir}${/}-", "read,write,delete";
 
+  // write to scratch
+  permission java.io.FilePermission "/Users/kevin.rosendahl/scratch/-", "read,write,delete";
+
   // misc HardlinkCopyDirectoryWrapper needs this to test if hardlinks can be created
   permission java.nio.file.LinkPermission "hard";
   // needed by SSD detection tests in TestIOUtils (creates symlinks)

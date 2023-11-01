@@ -200,6 +200,7 @@ public class VamanaGraphBuilder implements VamanaBuilder {
     RandomVectorScorer scorer = scorerSupplier.scorer(node);
     // then promote itself as entry node if entry node is not set
     if (vamana.trySetNewEntryNode(node)) {
+      vamana.addNode(node);
       return;
     }
 
@@ -259,7 +260,7 @@ public class VamanaGraphBuilder implements VamanaBuilder {
     int start = getGraph().entryNode();
     int newStart = -1;
 
-    while (newStart != start) {
+    for (int i = 0; i < Math.min(10000, getGraph().maxNodeId()); i++) {
       List<Candidate> candidates = new ArrayList<>();
 
       NeighborArray startNeighbors = getGraph().getNeighbors(start);
@@ -268,8 +269,8 @@ public class VamanaGraphBuilder implements VamanaBuilder {
         // Collect the total score of the entry point compared to all its neighbors.
         RandomVectorScorer startScorer = scorerSupplier.scorer(start);
         float totalScore = 0.0f;
-        for (int i = 0; i < startNeighbors.size(); i++) {
-          int neighbor = startNeighbors.node[i];
+        for (int j = 0; j < startNeighbors.size(); j++) {
+          int neighbor = startNeighbors.node[j];
           float score = startScorer.score(neighbor);
           totalScore += score;
         }
@@ -277,16 +278,16 @@ public class VamanaGraphBuilder implements VamanaBuilder {
         candidates.add(new Candidate(start, totalScore));
 
         // Then do the same for each neighbor of the entrypoint.
-        for (int i = 0; i < startNeighbors.size(); i++) {
-          int neighbor = startNeighbors.node[i];
+        for (int j = 0; j < startNeighbors.size(); j++) {
+          int neighbor = startNeighbors.node[j];
           RandomVectorScorer neighborScorer = scorerSupplier.scorer(neighbor);
           NeighborArray neighborNeighbors = getGraph().getNeighbors(neighbor);
 
           float neighborScore = 0.0f;
           neighborNeighbors.rwlock.readLock().lock();
           try {
-            for (int j = 0; j < neighborNeighbors.size(); j++) {
-              int neighborNeighbor = neighborNeighbors.node[j];
+            for (int k = 0; k < neighborNeighbors.size(); k++) {
+              int neighborNeighbor = neighborNeighbors.node[k];
               float score = neighborScorer.score(neighborNeighbor);
               neighborScore += score;
             }
@@ -305,9 +306,14 @@ public class VamanaGraphBuilder implements VamanaBuilder {
       // Choose the node which had the smallest cumulative score.
       candidates.sort(Comparator.naturalOrder());
       newStart = candidates.get(0).node;
+      if (newStart == start) {
+        return newStart;
+      }
+
+      start = newStart;
     }
 
-    return newStart;
+    return start;
   }
 
   private long printGraphBuildStatus(int node, long start, long t) {
@@ -533,7 +539,7 @@ public class VamanaGraphBuilder implements VamanaBuilder {
 
   private record SelectedDiverse(BitSet selected, List<Candidate> candidates) {}
 
-  private record Candidate(int node, float score) implements Comparable<Candidate> {
+  record Candidate(int node, float score) implements Comparable<Candidate> {
 
     @Override
     public int compareTo(Candidate o) {
