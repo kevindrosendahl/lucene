@@ -40,8 +40,8 @@ public class BuildLogger {
   static {
     wrap(() -> {
       FILE_WRITER = new FileWriter(PATH.toString(), true);
-//      WRITER = new BufferedWriter(FILE_WRITER);
-      WRITER = new BufferedWriter(NoOpWriter.INSTANCE);
+      WRITER = new BufferedWriter(FILE_WRITER);
+//      WRITER = new BufferedWriter(NoOpWriter.INSTANCE);
     });
   }
 

@@ -217,6 +217,24 @@ public class VamanaGraphBuilder {
       }
 
       var selected = selectDiverse(neighbors, M);
+      // FIXME: just for journaling
+      {
+        var set = selected.stream().map(Candidate::node).collect(Collectors.toSet());
+        var pruned = new ArrayList<Integer>();
+        for (int j = 0; j < neighbors.size(); j++) {
+          if (!set.contains(neighbors.node[j])) {
+//              BuildLogger.logPruned(nbrsOfNbr.node[j]);
+            pruned.add(neighbors.node[j]);
+          }
+        }
+
+        pruned.sort(Comparator.naturalOrder());
+        for (var pnode : pruned) {
+          BuildLogger.logPruned(pnode);
+        }
+      }
+
+
       neighbors.clear();
       for (var candidate : selected) {
         neighbors.addInOrder(candidate.node, candidate.score);
