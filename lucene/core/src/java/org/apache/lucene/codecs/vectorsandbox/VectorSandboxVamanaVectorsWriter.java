@@ -41,6 +41,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -49,6 +50,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.ScalarQuantizer;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.vamana.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.vamana.ConcurrentVamanaMerger;
@@ -687,6 +689,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
             : null;
     ScalarQuantizer quantizer =
         fieldData.isQuantized() ? fieldData.quantizedWriter.createQuantizer() : null;
+    float[] normalizeCopy = fieldData.isQuantized()
+        && fieldData.fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE
+        ? new float[fieldData.dim] : null;
 
     int[] sortedNodes = getSortedNodes(graph.getNodes());
     int[] offsets = new int[sortedNodes.length];
@@ -696,6 +701,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long offsetStart = vectorIndex.getFilePointer();
 
       // Write the full fidelity vector
+      // FIXME: normalize vector if cosine
       switch (encoding) {
         case BYTE -> {
           byte[] v = (byte[]) fieldData.vectors.get(node);
@@ -703,11 +709,15 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         }
         case FLOAT32 -> {
           if (fieldData.isQuantized()) {
-            byte[] vector = new byte[fieldData.dim];
+            float[] vector = (float[]) fieldData.vectors.get(node);
+            System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
+            VectorUtil.l2normalize(normalizeCopy);
+
+            byte[] quantizedVector = new byte[fieldData.dim];
             float offsetCorrection =
-                quantizer.quantize((float[]) fieldData.vectors.get(node), vector,
+                quantizer.quantize(normalizeCopy, quantizedVector,
                     fieldData.fieldInfo.getVectorSimilarityFunction());
-            vectorIndex.writeBytes(vector, vector.length);
+            vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
             quantizationOffsetBuffer.putFloat(offsetCorrection);
             vectorIndex.writeBytes(quantizationOffsetBuffer.array(),
                 quantizationOffsetBuffer.array().length);

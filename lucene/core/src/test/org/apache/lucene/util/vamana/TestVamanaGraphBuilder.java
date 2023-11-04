@@ -102,7 +102,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
         var vectorReader =
             (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
 
-        var quantizedReader = DirectoryReader.open(directory);
+        var quantizedReader = DirectoryReader.open(quantizedDirectory);
         var quantizedSearcher = new IndexSearcher(quantizedReader);
         var quantizedLeafReader = quantizedReader.leaves().get(0).reader();
         var quantizedPerFieldVectorReader =
@@ -118,17 +118,11 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
 //      sandboxGraph.seek(0);
 //      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
 
-        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 5);
-
-        System.out.println("regular");
-        Arrays.stream(searcher.search(query, 5).scoreDocs)
-            .map(scoreDoc -> scoreDoc.doc)
-            .forEach(i -> System.out.println("i = " + i));
-
-        System.out.println("quantized");
-        Arrays.stream(quantizedSearcher.search(query, 5).scoreDocs)
-            .map(scoreDoc -> scoreDoc.doc)
-            .forEach(i -> System.out.println("i = " + i));
+        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
+        var results = searcher.search(query, 10).scoreDocs;
+        var quantizedResults = quantizedSearcher.search(query, 10).scoreDocs;
+        System.out.println("results = " + results);
+        System.out.println("quantizedResults = " + quantizedResults);
       }
     }
   }

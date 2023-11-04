@@ -545,7 +545,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       this.graphNodeOffsets = DirectMonotonicReader.getInstance(entry.offsetsMeta, addressesData);
       this.currentNeighborsBuffer = new int[entry.M];
       this.vectorSize =
-          entry.isQuantized ? this.dimensions + Float.BYTES : this.dimensions * this.encoding.byteSize;
+          entry.isQuantized ? this.dimensions + Float.BYTES
+              : this.dimensions * this.encoding.byteSize;
     }
 
     @Override
