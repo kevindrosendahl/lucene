@@ -710,12 +710,15 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         case FLOAT32 -> {
           if (fieldData.isQuantized()) {
             float[] vector = (float[]) fieldData.vectors.get(node);
-            System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
-            VectorUtil.l2normalize(normalizeCopy);
+            if (fieldData.fieldInfo.getVectorSimilarityFunction()
+                == VectorSimilarityFunction.COSINE) {
+              System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
+              VectorUtil.l2normalize(normalizeCopy);
+            }
 
             byte[] quantizedVector = new byte[fieldData.dim];
             float offsetCorrection =
-                quantizer.quantize(normalizeCopy, quantizedVector,
+                quantizer.quantize(normalizeCopy != null ? normalizeCopy : vector, quantizedVector,
                     fieldData.fieldInfo.getVectorSimilarityFunction());
             vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
             quantizationOffsetBuffer.putFloat(offsetCorrection);
