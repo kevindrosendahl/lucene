@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -46,7 +47,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
   }
 
   @Test
-  public void compareGraphs() throws Exception {
+  public void compareQuantizedGraphs() throws Exception {
     var codec =
         new Lucene99Codec() {
           @Override
@@ -123,6 +124,86 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
         var quantizedResults = quantizedSearcher.search(query, 10).scoreDocs;
         System.out.println("results = " + results);
         System.out.println("quantizedResults = " + quantizedResults);
+      }
+    }
+  }
+
+  @Test
+  public void compareMergedGraphs() throws Exception {
+    var codec =
+        new Lucene99Codec() {
+          @Override
+          public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f,
+                null);
+          }
+        };
+
+    try (var directory = new ByteBuffersDirectory()) {
+      try (var mergedDirectory = new ByteBuffersDirectory()) {
+        var config =
+            new IndexWriterConfig()
+                .setCodec(codec)
+                .setCommitOnClose(true)
+                .setUseCompoundFile(false);
+        try (var writer = new IndexWriter(directory, config)) {
+          int i = 0;
+          for (var vector : VECTORS) {
+            var doc = new Document();
+            doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
+            doc.add(new StoredField("_id", i++));
+            writer.addDocument(doc);
+          }
+        }
+
+        var mergedConfig =
+            new IndexWriterConfig()
+                .setCodec(codec)
+                .setCommitOnClose(true)
+                .setUseCompoundFile(false);
+        try (var writer = new IndexWriter(mergedDirectory, mergedConfig)) {
+          int i = 0;
+          for (var vector : VECTORS) {
+            var doc = new Document();
+            doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
+            writer.addDocument(doc);
+            doc.add(new StoredField("_id", i++));
+            writer.flush();
+          }
+
+          writer.forceMerge(1);
+        }
+
+        var reader = DirectoryReader.open(directory);
+        var searcher = new IndexSearcher(reader);
+        var leafReader = reader.leaves().get(0).reader();
+        var perFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) leafReader).getVectorReader();
+        var vectorReader =
+            (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
+
+        var mergedReader = DirectoryReader.open(mergedDirectory);
+        var mergedSearcher = new IndexSearcher(mergedReader);
+        var mergedLeafReader = mergedReader.leaves().get(0).reader();
+        var mergedPerFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) mergedLeafReader).getVectorReader();
+        var mergedVectorReader =
+            (VectorSandboxVamanaVectorsReader) mergedPerFieldVectorReader.getFieldReader("vector");
+
+        var graph = vectorReader.getGraph("vector");
+        var mergedGraph = mergedVectorReader.getGraph("vector");
+        var onHeapGraph = onHeapGraph();
+
+//      sandboxGraph.seek(0);
+//      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
+
+        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
+        var results = searcher.search(query, 10).scoreDocs;
+        var mergedResults = mergedSearcher.search(query, 10).scoreDocs;
+        System.out.println("results = " + results);
+        System.out.println("mergedResults = " + mergedResults);
       }
     }
   }
