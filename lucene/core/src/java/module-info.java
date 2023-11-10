@@ -17,6 +17,7 @@
 
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 
 /** Lucene Core. */
@@ -73,6 +74,7 @@ module org.apache.lucene.core {
       org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
   provides org.apache.lucene.codecs.KnnVectorsFormat with
       Lucene99HnswVectorsFormat,
+      VectorSandboxFastIngestVectorsFormat,
       VectorSandboxVamanaVectorsFormat;
   provides org.apache.lucene.codecs.PostingsFormat with
       org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;

@@ -14,4 +14,5 @@
 #  limitations under the License.
 
 org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat
+org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsFormat
 org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat

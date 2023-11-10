@@ -120,9 +120,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     final String quantizedVectorDataFileName =
         quantizedVectorsFormat != null
             ? IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
             : null;
     boolean success = false;
     try {
@@ -393,7 +393,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    *
    * <p>Additionally, the graph node connections are written to the vectorIndex.
    *
-   * @param graph       The current on heap graph
+   * @param graph The current on heap graph
    * @param newToOldMap the new node ids indexed to the old node ids
    * @param oldToNewMap the old node ids indexed to the new node ids
    * @param nodeOffsets where to place the new offsets for the nodes in the vector index.
@@ -540,11 +540,13 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         tempVectorData =
             segmentWriteState.directory.createTempOutput(
                 vectorData.getName(), "temp", segmentWriteState.context);
-//        docsWithField =
-//            switch (fieldInfo.getVectorEncoding()) {
-//              case BYTE -> vectorDocs(MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState));
-//              case FLOAT32 -> vectorDocs(MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
-//            };
+        //        docsWithField =
+        //            switch (fieldInfo.getVectorEncoding()) {
+        //              case BYTE -> vectorDocs(MergedVectorValues.mergeByteVectorValues(fieldInfo,
+        // mergeState));
+        //              case FLOAT32 ->
+        // vectorDocs(MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+        //            };
         // FIXME: maybe don't write temp vector file, just read from existing graphs
         docsWithField =
             switch (fieldInfo.getVectorEncoding()) {
@@ -558,8 +560,10 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         vectorDataInput =
             segmentWriteState.directory.openInput(
                 tempVectorData.getName(), segmentWriteState.context);
-        // Don't copy the bytes to the vectorData file if we didn't quantize, they'll be in the graph
-//        vectorData.copyBytes(vectorDataInput, vectorDataInput.length() - CodecUtil.footerLength());
+        // Don't copy the bytes to the vectorData file if we didn't quantize, they'll be in the
+        // graph
+        //        vectorData.copyBytes(vectorDataInput, vectorDataInput.length() -
+        // CodecUtil.footerLength());
         CodecUtil.retrieveChecksum(vectorDataInput);
         final RandomVectorScorerSupplier innerScoreSupplier =
             switch (fieldInfo.getVectorEncoding()) {
@@ -642,9 +646,14 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         graph =
             merger.merge(
                 mergedVectorIterator, segmentWriteState.infoStream, docsWithField.cardinality());
-        vectorIndexNodeOffsets = writeMergedGraph(graph, fieldInfo.getVectorEncoding(),
-            fieldInfo.getVectorSimilarityFunction(), fieldInfo.getVectorDimension(),
-            scalarQuantizer, mergedVectorIterator);
+        vectorIndexNodeOffsets =
+            writeMergedGraph(
+                graph,
+                fieldInfo.getVectorEncoding(),
+                fieldInfo.getVectorSimilarityFunction(),
+                fieldInfo.getVectorDimension(),
+                scalarQuantizer,
+                mergedVectorIterator);
       }
       long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
       writeMeta(
@@ -692,13 +701,17 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
             ? ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
             : null;
     ByteBuffer quantizationOffsetBuffer =
-        fieldData.isQuantized() ? ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+        fieldData.isQuantized()
+            ? ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
             : null;
     ScalarQuantizer quantizer =
         fieldData.isQuantized() ? fieldData.quantizedWriter.createQuantizer() : null;
-    float[] normalizeCopy = fieldData.isQuantized()
-        && fieldData.fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE
-        ? new float[fieldData.dim] : null;
+    float[] normalizeCopy =
+        fieldData.isQuantized()
+                && fieldData.fieldInfo.getVectorSimilarityFunction()
+                    == VectorSimilarityFunction.COSINE
+            ? new float[fieldData.dim]
+            : null;
 
     int[] sortedNodes = getSortedNodes(graph.getNodes());
     int[] offsets = new int[sortedNodes.length];
@@ -724,12 +737,14 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
             byte[] quantizedVector = new byte[fieldData.dim];
             float offsetCorrection =
-                quantizer.quantize(normalizeCopy != null ? normalizeCopy : vector, quantizedVector,
+                quantizer.quantize(
+                    normalizeCopy != null ? normalizeCopy : vector,
+                    quantizedVector,
                     fieldData.fieldInfo.getVectorSimilarityFunction());
             vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
             quantizationOffsetBuffer.putFloat(offsetCorrection);
-            vectorIndex.writeBytes(quantizationOffsetBuffer.array(),
-                quantizationOffsetBuffer.array().length);
+            vectorIndex.writeBytes(
+                quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
             quantizationOffsetBuffer.rewind();
           } else {
             float[] v = (float[]) fieldData.vectors.get(node);
@@ -772,20 +787,25 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    * @return The non-cumulative offsets for the nodes. Should be used to create cumulative offsets.
    * @throws IOException if writing to vectorIndex fails
    */
-  private int[] writeMergedGraph(OnHeapVamanaGraph graph, VectorEncoding encoding,
-      VectorSimilarityFunction similarityFunction, int dimensions,
-      ScalarQuantizer quantizer, DocIdSetIterator vectors) throws IOException {
+  private int[] writeMergedGraph(
+      OnHeapVamanaGraph graph,
+      VectorEncoding encoding,
+      VectorSimilarityFunction similarityFunction,
+      int dimensions,
+      ScalarQuantizer quantizer,
+      DocIdSetIterator vectors)
+      throws IOException {
     boolean quantized = quantizer != null;
     ByteBuffer vectorBuffer =
         encoding == VectorEncoding.FLOAT32
             ? ByteBuffer.allocate(dimensions * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
             : null;
     ByteBuffer quantizationOffsetBuffer =
-        quantized ? ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+        quantized ? ByteBuffer.allocate(Float.BYTES).order(ByteOrder.LITTLE_ENDIAN) : null;
+    float[] normalizeCopy =
+        quantized && similarityFunction == VectorSimilarityFunction.COSINE
+            ? new float[dimensions]
             : null;
-    float[] normalizeCopy = quantized
-        && similarityFunction == VectorSimilarityFunction.COSINE
-        ? new float[dimensions] : null;
 
     int[] sortedNodes = getSortedNodes(graph.getNodes());
     int[] offsets = new int[sortedNodes.length];
@@ -811,12 +831,14 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
             byte[] quantizedVector = new byte[dimensions];
             float offsetCorrection =
-                quantizer.quantize(normalizeCopy != null ? normalizeCopy : vector, quantizedVector,
+                quantizer.quantize(
+                    normalizeCopy != null ? normalizeCopy : vector,
+                    quantizedVector,
                     similarityFunction);
             vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
             quantizationOffsetBuffer.putFloat(offsetCorrection);
-            vectorIndex.writeBytes(quantizationOffsetBuffer.array(),
-                quantizationOffsetBuffer.array().length);
+            vectorIndex.writeBytes(
+                quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
             quantizationOffsetBuffer.rewind();
           } else {
             float[] v = ((FloatVectorValues) vectors).vectorValue();
@@ -993,9 +1015,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
   private static DocsWithFieldSet vectorDocs(DocIdSetIterator vectorValues) throws IOException {
     DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-    for (int docV = vectorValues.nextDoc();
-        docV != NO_MORE_DOCS;
-        docV = vectorValues.nextDoc()) {
+    for (int docV = vectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = vectorValues.nextDoc()) {
       docsWithField.add(docV);
     }
     return docsWithField;
@@ -1118,10 +1138,10 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long quantizationSpace = quantizedWriter != null ? quantizedWriter.ramBytesUsed() : 0L;
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
-          * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+              * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
           + (long) vectors.size()
-          * fieldInfo.getVectorDimension()
-          * fieldInfo.getVectorEncoding().byteSize
+              * fieldInfo.getVectorDimension()
+              * fieldInfo.getVectorEncoding().byteSize
           + vamanaGraphBuilder.getGraph().ramBytesUsed()
           + quantizationSpace;
     }
