@@ -76,9 +76,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   VectorSandboxVamanaVectorsReader(SegmentReadState state) throws IOException {
     this.fieldInfos = state.fieldInfos;
     int versionMeta = readMetadata(state);
-    readPqVectors(state, versionMeta);
     boolean success = false;
     try {
+      readPqVectors(state, versionMeta);
       vectorData =
           openDataInput(
               state,
@@ -215,6 +215,35 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       fields.put(info.name, fieldEntry);
     }
   }
+
+//  private void readPqVectors(SegmentReadState state, int versionMeta) throws IOException {
+//    try (var pqData =
+//        openDataInput(
+//            state,
+//            versionMeta,
+//            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
+//            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME)) {
+//      for (var entry : fields.entrySet()) {
+//        var field = entry.getKey();
+//        var fieldEntry = entry.getValue();
+//
+//        if (fieldEntry.pq == null) {
+//          continue;
+//        }
+//
+//        int M = fieldEntry.pq.M();
+//        pqData.seek(fieldEntry.pqDataOffset);
+//
+//        byte[][] encoded = new byte[fieldEntry.size][];
+//        for (int i = 0; i < encoded.length; i++) {
+//          encoded[i] = new byte[M];
+//          pqData.readBytes(encoded[i], 0, M);
+//        }
+//
+//        pqVectors.put(field, encoded);
+//      }
+//    }
+//  }
 
   private void validateFieldEntry(FieldInfo info, FieldEntry fieldEntry) {
     int dimension = info.getVectorDimension();
@@ -535,6 +564,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         for (int i = 0; i < numCodebooks; i++) {
           float[][] centroids = new float[codebookSize][];
           for (int j = 0; j < codebookSize; j++) {
+            centroids[j] = new float[centroidDimensions];
             meta.readFloats(centroids[j], 0, centroidDimensions);
           }
 

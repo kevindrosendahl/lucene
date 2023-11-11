@@ -129,18 +129,16 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     final String quantizedVectorDataFileName =
         quantizedVectorsFormat != null
             ? IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
             : null;
 
     String pqDataFileName =
-        pqFactor > 0
-            ? IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION)
-            : null;
+        IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION);
 
     boolean success = false;
     try {
@@ -182,17 +180,13 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         quantizedVectorData = null;
         quantizedVectorsWriter = null;
       }
-      if (pqDataFileName != null) {
-        pqData = state.directory.createOutput(pqDataFileName, state.context);
-        CodecUtil.writeIndexHeader(
-            pqData,
-            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME,
-            VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
-            state.segmentInfo.getId(),
-            state.segmentSuffix);
-      } else {
-        pqData = null;
-      }
+      pqData = state.directory.createOutput(pqDataFileName, state.context);
+      CodecUtil.writeIndexHeader(
+          pqData,
+          VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME,
+          VectorSandboxVamanaVectorsFormat.VERSION_CURRENT,
+          state.segmentInfo.getId(),
+          state.segmentSuffix);
       success = true;
     } finally {
       if (success == false) {
@@ -260,6 +254,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     if (vectorData != null) {
       CodecUtil.writeFooter(vectorData);
       CodecUtil.writeFooter(vectorIndex);
+    }
+    if (pqData != null) {
+      CodecUtil.writeFooter(pqData);
     }
   }
 
@@ -469,7 +466,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    *
    * <p>Additionally, the graph node connections are written to the vectorIndex.
    *
-   * @param graph The current on heap graph
+   * @param graph       The current on heap graph
    * @param newToOldMap the new node ids indexed to the old node ids
    * @param oldToNewMap the old node ids indexed to the new node ids
    * @param nodeOffsets where to place the new offsets for the nodes in the vector index.
@@ -805,8 +802,8 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         fieldData.isQuantized() ? fieldData.quantizedWriter.createQuantizer() : null;
     float[] normalizeCopy =
         fieldData.isQuantized()
-                && fieldData.fieldInfo.getVectorSimilarityFunction()
-                    == VectorSimilarityFunction.COSINE
+            && fieldData.fieldInfo.getVectorSimilarityFunction()
+            == VectorSimilarityFunction.COSINE
             ? new float[fieldData.dim]
             : null;
 
@@ -1057,7 +1054,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         for (int i = 0; i < codebook.size(); i++) {
           float[] centroid = codebook.centroid(i);
           buffer.asFloatBuffer().put(centroid);
-          vectorData.writeBytes(buffer.array(), buffer.array().length);
+          meta.writeBytes(buffer.array(), buffer.array().length);
         }
       }
     }
@@ -1136,7 +1133,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
   @Override
   public void close() throws IOException {
-    IOUtils.close(meta, vectorData, vectorIndex, quantizedVectorData);
+    IOUtils.close(meta, vectorData, vectorIndex, quantizedVectorData, pqData);
   }
 
   private abstract static class FieldWriter<T> extends KnnFieldVectorsWriter<T> {
@@ -1256,10 +1253,10 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long quantizationSpace = quantizedWriter != null ? quantizedWriter.ramBytesUsed() : 0L;
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
-              * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+          * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
           + (long) vectors.size()
-              * fieldInfo.getVectorDimension()
-              * fieldInfo.getVectorEncoding().byteSize
+          * fieldInfo.getVectorDimension()
+          * fieldInfo.getVectorEncoding().byteSize
           + vamanaGraphBuilder.getGraph().ramBytesUsed()
           + quantizationSpace;
     }
