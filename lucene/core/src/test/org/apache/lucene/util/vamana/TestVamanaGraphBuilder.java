@@ -48,7 +48,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f, null);
+            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f, 0, null);
           }
         };
 
@@ -57,7 +57,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
             return new VectorSandboxVamanaVectorsFormat(
-                32, 100, 1.2f, new VectorSandboxScalarQuantizedVectorsFormat());
+                32, 100, 1.2f, 0, new VectorSandboxScalarQuantizedVectorsFormat());
           }
         };
 
@@ -131,7 +131,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f, null);
+            return new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f, 0, null);
           }
         };
 

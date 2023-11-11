@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
@@ -31,7 +32,17 @@ import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 /** ProductQuantization */
 public class ProductQuantization {
 
-  // TODO: consider normalizing around the global centroid
+  private static final Random RANDOM = new Random(13);
+  private static final ForkJoinPool FORK_JOIN_POOL =
+      new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+
+  // TODO: consider normalizing around the global centroid for euclidean
+  public static ProductQuantization compute(
+      RandomAccessVectorValues<float[]> ravv, int M, VectorSimilarityFunction similarityFunction)
+      throws IOException {
+    return compute(ravv, M, similarityFunction, RANDOM);
+  }
+
   public static ProductQuantization compute(
       RandomAccessVectorValues<float[]> ravv,
       int M,
@@ -66,7 +77,7 @@ public class ProductQuantization {
     }
   }
 
-  private static class Codebook {
+  public static class Codebook {
 
     private float[][] centroids;
 
@@ -105,6 +116,10 @@ public class ProductQuantization {
     this.subvectorInfos = subvectorInfos;
     this.decodedDimensionSize = Arrays.stream(subvectorInfos).mapToInt(info -> info.size).sum();
     this.similarityFunction = similarityFunction;
+  }
+
+  public Codebook[] codebooks() {
+    return this.codebooks;
   }
 
   public byte[] encode(float[] vector) {
@@ -154,10 +169,17 @@ public class ProductQuantization {
       SubvectorInfo[] subvectorInfos,
       VectorSimilarityFunction similarityFunction,
       Random random) {
-    return IntStream.range(0, M)
-        .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos, similarityFunction, random))
-        .map(Codebook::new)
-        .toArray(Codebook[]::new);
+    return FORK_JOIN_POOL
+        .submit(
+            () ->
+                IntStream.range(0, M)
+                    .mapToObj(
+                        m ->
+                            clusterSubvectors(
+                                vectors, m, subvectorInfos, similarityFunction, random))
+                    .map(Codebook::new)
+                    .toArray(Codebook[]::new))
+        .join();
   }
 
   private static float[][] clusterSubvectors(

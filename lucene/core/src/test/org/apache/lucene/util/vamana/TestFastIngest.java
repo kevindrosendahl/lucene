@@ -48,7 +48,7 @@ public class TestFastIngest extends LuceneTestCase {
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxVamanaVectorsFormat(64, 100, 1.2f, null);
+            return new VectorSandboxVamanaVectorsFormat(64, 100, 1.2f, 0, null);
           }
         };
 
