@@ -55,6 +55,12 @@ public class ProductQuantization {
     return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
   }
 
+  public static ProductQuantization fromCodebooks(
+      Codebook[] codebooks, int dimensions, int M, VectorSimilarityFunction similarityFunction) {
+    var subvectorInfos = getSubvectorInfo(dimensions, M);
+    return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
+  }
+
   // Cannot go above 256 since we're packing these values into a byte.
   private static final int CLUSTERS = 256;
   private static final int K_MEANS_ITERATIONS = 6;
@@ -120,6 +126,10 @@ public class ProductQuantization {
 
   public Codebook[] codebooks() {
     return this.codebooks;
+  }
+
+  public int M() {
+    return this.M;
   }
 
   public byte[] encode(float[] vector) {

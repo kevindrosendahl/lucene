@@ -46,6 +46,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.ScalarQuantizer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.pq.ProductQuantization;
+import org.apache.lucene.util.pq.ProductQuantization.Codebook;
 import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
@@ -65,6 +67,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   private final FieldInfos fieldInfos;
   private final Map<String, FieldEntry> fields = new HashMap<>();
+  private final Map<String, byte[][]> pqVectors = new HashMap<>();
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
   private final IndexInput quantizedVectorData;
@@ -73,6 +76,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   VectorSandboxVamanaVectorsReader(SegmentReadState state) throws IOException {
     this.fieldInfos = state.fieldInfos;
     int versionMeta = readMetadata(state);
+    readPqVectors(state, versionMeta);
     boolean success = false;
     try {
       vectorData =
@@ -133,6 +137,35 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       }
     }
     return versionMeta;
+  }
+
+  private void readPqVectors(SegmentReadState state, int versionMeta) throws IOException {
+    try (var pqData =
+        openDataInput(
+            state,
+            versionMeta,
+            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
+            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME)) {
+      for (var entry : fields.entrySet()) {
+        var field = entry.getKey();
+        var fieldEntry = entry.getValue();
+
+        if (fieldEntry.pq == null) {
+          continue;
+        }
+
+        int M = fieldEntry.pq.M();
+        pqData.seek(fieldEntry.pqDataOffset);
+
+        byte[][] encoded = new byte[fieldEntry.size][];
+        for (int i = 0; i < encoded.length; i++) {
+          encoded[i] = new byte[M];
+          pqData.readBytes(encoded[i], 0, M);
+        }
+
+        pqVectors.put(field, encoded);
+      }
+    }
   }
 
   private static IndexInput openDataInput(
@@ -239,10 +272,10 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     return VectorEncoding.values()[encodingId];
   }
 
-  private FieldEntry readField(IndexInput input) throws IOException {
-    VectorEncoding vectorEncoding = readVectorEncoding(input);
-    VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
-    return new FieldEntry(input, vectorEncoding, similarityFunction);
+  private FieldEntry readField(IndexInput meta) throws IOException {
+    VectorEncoding vectorEncoding = readVectorEncoding(meta);
+    VectorSimilarityFunction similarityFunction = readSimilarityFunction(meta);
+    return new FieldEntry(meta, vectorEncoding, similarityFunction);
   }
 
   @Override
@@ -341,6 +374,20 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
+
+      if (pqVectors.containsKey(field)) {
+        byte[] encodedQuery = fieldEntry.pq.encode(target);
+        byte[][] encoded = pqVectors.get(field);
+        scorer =
+            new RandomVectorScorer() {
+              @Override
+              public float score(int node) throws IOException {
+                byte[] encodedNode = encoded[node];
+                return fieldEntry.similarityFunction.compare(encodedQuery, encodedNode);
+              }
+            };
+      }
+
       VamanaGraphSearcher.search(
           scorer,
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
@@ -443,21 +490,24 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     final boolean isQuantized;
     final OrdToDocDISIReaderConfiguration quantizedOrdToDoc;
 
+    final long pqDataOffset;
+    final long pqDataLength;
+    final int pqFactor;
+    final ProductQuantization pq;
+
     FieldEntry(
-        IndexInput input,
-        VectorEncoding vectorEncoding,
-        VectorSimilarityFunction similarityFunction)
+        IndexInput meta, VectorEncoding vectorEncoding, VectorSimilarityFunction similarityFunction)
         throws IOException {
       this.similarityFunction = similarityFunction;
       this.vectorEncoding = vectorEncoding;
-      this.isQuantized = input.readByte() == 1;
+      this.isQuantized = meta.readByte() == 1;
       // Has int8 quantization
       if (isQuantized) {
-        configuredQuantile = Float.intBitsToFloat(input.readInt());
-        lowerQuantile = Float.intBitsToFloat(input.readInt());
-        upperQuantile = Float.intBitsToFloat(input.readInt());
-        quantizedVectorDataOffset = input.readVLong();
-        quantizedVectorDataLength = input.readVLong();
+        configuredQuantile = Float.intBitsToFloat(meta.readInt());
+        lowerQuantile = Float.intBitsToFloat(meta.readInt());
+        upperQuantile = Float.intBitsToFloat(meta.readInt());
+        quantizedVectorDataOffset = meta.readVLong();
+        quantizedVectorDataLength = meta.readVLong();
         scalarQuantizer = new ScalarQuantizer(lowerQuantile, upperQuantile, configuredQuantile);
       } else {
         configuredQuantile = -1;
@@ -467,27 +517,51 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         quantizedVectorDataLength = -1;
         scalarQuantizer = null;
       }
-      vectorDataOffset = input.readVLong();
-      vectorDataLength = input.readVLong();
-      vectorIndexOffset = input.readVLong();
-      vectorIndexLength = input.readVLong();
-      dimension = input.readVInt();
-      size = input.readInt();
+      vectorDataOffset = meta.readVLong();
+      vectorDataLength = meta.readVLong();
+      vectorIndexOffset = meta.readVLong();
+      vectorIndexLength = meta.readVLong();
+      dimension = meta.readVInt();
+
+      pqDataOffset = meta.readLong();
+      pqDataLength = meta.readLong();
+      pqFactor = meta.readVInt();
+      if (pqFactor > 0) {
+        int numCodebooks = meta.readVInt();
+        int codebookSize = meta.readVInt();
+        int centroidDimensions = meta.readVInt();
+
+        Codebook[] codebooks = new Codebook[numCodebooks];
+        for (int i = 0; i < numCodebooks; i++) {
+          float[][] centroids = new float[codebookSize][];
+          for (int j = 0; j < codebookSize; j++) {
+            meta.readFloats(centroids[j], 0, centroidDimensions);
+          }
+
+          codebooks[i] = new Codebook(centroids);
+        }
+
+        pq = ProductQuantization.fromCodebooks(codebooks, dimension, pqFactor, similarityFunction);
+      } else {
+        pq = null;
+      }
+
+      size = meta.readInt();
       if (isQuantized) {
-        quantizedOrdToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(input, size);
+        quantizedOrdToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(meta, size);
       } else {
         quantizedOrdToDoc = null;
       }
-      ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(input, size);
+      ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(meta, size);
 
       // read node offsets
-      M = input.readVInt();
+      M = meta.readVInt();
       if (size > 0) {
-        entryNode = input.readVInt();
-        offsetsOffset = input.readLong();
-        offsetsBlockShift = input.readVInt();
-        offsetsMeta = DirectMonotonicReader.loadMeta(input, size, offsetsBlockShift);
-        offsetsLength = input.readLong();
+        entryNode = meta.readVInt();
+        offsetsOffset = meta.readLong();
+        offsetsBlockShift = meta.readVInt();
+        offsetsMeta = DirectMonotonicReader.loadMeta(meta, size, offsetsBlockShift);
+        offsetsLength = meta.readLong();
       } else {
         entryNode = -1;
         offsetsOffset = 0;

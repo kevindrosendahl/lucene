@@ -1043,11 +1043,15 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
     meta.writeLong(pqDataOffset);
     meta.writeLong(pqDataLength);
-    meta.writeInt(codebooks == null ? 0 : 1);
+    meta.writeVInt(pqFactor);
     if (codebooks != null) {
       int centroidDimensions = codebooks[0].centroid(0).length;
       final ByteBuffer buffer =
           ByteBuffer.allocate(centroidDimensions * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+
+      meta.writeVInt(codebooks.length);
+      meta.writeVInt(codebooks[0].size());
+      meta.writeVInt(centroidDimensions);
 
       for (var codebook : codebooks) {
         for (int i = 0; i < codebook.size(); i++) {
