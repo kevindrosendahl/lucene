@@ -5,14 +5,11 @@ import java.util.List;
 import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
-import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -94,25 +91,27 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
 
         var reader = DirectoryReader.open(directory);
         var searcher = new IndexSearcher(reader);
-        var leafReader = reader.leaves().get(0).reader();
-        var perFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) leafReader).getVectorReader();
-        var vectorReader =
-            (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
+        //        var leafReader = reader.leaves().get(0).reader();
+        //        var perFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
+        // leafReader).getVectorReader();
+        //        var vectorReader =
+        //            (VectorSandboxVamanaVectorsReader)
+        // perFieldVectorReader.getFieldReader("vector");
 
         var quantizedReader = DirectoryReader.open(quantizedDirectory);
         var quantizedSearcher = new IndexSearcher(quantizedReader);
-        var quantizedLeafReader = quantizedReader.leaves().get(0).reader();
-        var quantizedPerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader)
-                ((CodecReader) quantizedLeafReader).getVectorReader();
-        var quantizedVectorReader =
-            (VectorSandboxVamanaVectorsReader)
-                quantizedPerFieldVectorReader.getFieldReader("vector");
+        //        var quantizedLeafReader = quantizedReader.leaves().get(0).reader();
+        //        var quantizedPerFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader)
+        //                ((CodecReader) quantizedLeafReader).getVectorReader();
+        //        var quantizedVectorReader =
+        //            (VectorSandboxVamanaVectorsReader)
+        //                quantizedPerFieldVectorReader.getFieldReader("vector");
 
-        var graph = vectorReader.getGraph("vector");
-        var quantizedGraph = quantizedVectorReader.getGraph("vector");
-        var onHeapGraph = onHeapGraph();
+        //        var graph = vectorReader.getGraph("vector");
+        //        var quantizedGraph = quantizedVectorReader.getGraph("vector");
+        //        var onHeapGraph = onHeapGraph();
 
         //      sandboxGraph.seek(0);
         //      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
@@ -173,24 +172,27 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
 
         var reader = DirectoryReader.open(directory);
         var searcher = new IndexSearcher(reader);
-        var leafReader = reader.leaves().get(0).reader();
-        var perFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) leafReader).getVectorReader();
-        var vectorReader =
-            (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
+        //        var leafReader = reader.leaves().get(0).reader();
+        //        var perFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
+        // leafReader).getVectorReader();
+        //        var vectorReader =
+        //            (VectorSandboxVamanaVectorsReader)
+        // perFieldVectorReader.getFieldReader("vector");
 
         var mergedReader = DirectoryReader.open(mergedDirectory);
         var mergedSearcher = new IndexSearcher(mergedReader);
-        var mergedLeafReader = mergedReader.leaves().get(0).reader();
-        var mergedPerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader)
-                ((CodecReader) mergedLeafReader).getVectorReader();
-        var mergedVectorReader =
-            (VectorSandboxVamanaVectorsReader) mergedPerFieldVectorReader.getFieldReader("vector");
+        //        var mergedLeafReader = mergedReader.leaves().get(0).reader();
+        //        var mergedPerFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader)
+        //                ((CodecReader) mergedLeafReader).getVectorReader();
+        //        var mergedVectorReader =
+        //            (VectorSandboxVamanaVectorsReader)
+        // mergedPerFieldVectorReader.getFieldReader("vector");
 
-        var graph = vectorReader.getGraph("vector");
-        var mergedGraph = mergedVectorReader.getGraph("vector");
-        var onHeapGraph = onHeapGraph();
+        //        var graph = vectorReader.getGraph("vector");
+        //        var mergedGraph = mergedVectorReader.getGraph("vector");
+        //        var onHeapGraph = onHeapGraph();
 
         //      sandboxGraph.seek(0);
         //      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
@@ -205,7 +207,7 @@ public class TestVamanaGraphBuilder extends LuceneTestCase {
   }
 
   private OnHeapVamanaGraph onHeapGraph() throws Exception {
-    var values = new RAVectorValues<>(VECTORS, VECTOR_DIMENSIONS);
+    RAVectorValues<float[]> values = new RAVectorValues<>(VECTORS, VECTOR_DIMENSIONS);
 
     var builder =
         VamanaGraphBuilder.create(

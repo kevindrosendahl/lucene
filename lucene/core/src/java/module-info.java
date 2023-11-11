@@ -38,6 +38,7 @@ module org.apache.lucene.core {
   exports org.apache.lucene.codecs.lucene99;
   exports org.apache.lucene.codecs.lucene90.blocktree;
   exports org.apache.lucene.codecs.lucene90.compressing;
+  exports org.apache.lucene.codecs.vectorsandbox;
   exports org.apache.lucene.codecs.perfield;
   exports org.apache.lucene.document;
   exports org.apache.lucene.geo;
@@ -49,6 +50,7 @@ module org.apache.lucene.core {
   exports org.apache.lucene.util;
   exports org.apache.lucene.util.automaton;
   exports org.apache.lucene.util.bkd;
+  exports org.apache.lucene.util.clustering;
   exports org.apache.lucene.util.compress;
   exports org.apache.lucene.util.fst;
   exports org.apache.lucene.util.graph;

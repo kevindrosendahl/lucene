@@ -6,15 +6,11 @@ import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsFormat;
-import org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsReader;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
-import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -117,25 +113,27 @@ public class TestFastIngest extends LuceneTestCase {
 
         var reader = DirectoryReader.open(directory);
         var searcher = new IndexSearcher(reader);
-        var leafReader = reader.leaves().get(0).reader();
-        var perFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader) leafReader).getVectorReader();
-        var vectorReader =
-            (VectorSandboxVamanaVectorsReader) perFieldVectorReader.getFieldReader("vector");
+        //        var leafReader = reader.leaves().get(0).reader();
+        //        var perFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
+        // leafReader).getVectorReader();
+        //        var vectorReader =
+        //            (VectorSandboxVamanaVectorsReader)
+        // perFieldVectorReader.getFieldReader("vector");
 
         var ingestReader = DirectoryReader.open(ingestDirectory);
         var ingestSearcher = new IndexSearcher(ingestReader);
-        var ingestLeafReader = ingestReader.leaves().get(0).reader();
-        var ingestPerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader)
-                ((CodecReader) ingestLeafReader).getVectorReader();
-        var ingestVectorReader =
-            (VectorSandboxFastIngestVectorsReader)
-                ingestPerFieldVectorReader.getFieldReader("vector");
+        //        var ingestLeafReader = ingestReader.leaves().get(0).reader();
+        //        var ingestPerFieldVectorReader =
+        //            (PerFieldKnnVectorsFormat.FieldsReader)
+        //                ((CodecReader) ingestLeafReader).getVectorReader();
+        //        var ingestVectorReader =
+        //            (VectorSandboxFastIngestVectorsReader)
+        //                ingestPerFieldVectorReader.getFieldReader("vector");
 
-        var graph = vectorReader.getGraph("vector");
+        //        var graph = vectorReader.getGraph("vector");
         //        var quantizedGraph = ingestVectorReader.getGraph("vector");
-        var onHeapGraph = onHeapGraph();
+        //        var onHeapGraph = onHeapGraph();
 
         //      sandboxGraph.seek(0);
         //      System.out.println("sandboxGraph.nextNeighbor() = " + sandboxGraph.nextNeighbor());
@@ -159,55 +157,6 @@ public class TestFastIngest extends LuceneTestCase {
         System.out.println("results = " + results);
         System.out.println("ingestResults = " + ingestResults);
       }
-    }
-  }
-
-  private OnHeapVamanaGraph onHeapGraph() throws Exception {
-    var values = new RAVectorValues<>(VECTORS, VECTOR_DIMENSIONS);
-
-    var builder =
-        VamanaGraphBuilder.create(
-            RandomVectorScorerSupplier.createFloats(values, VectorSimilarityFunction.COSINE),
-            32,
-            100,
-            1.2f);
-
-    for (int i = 0; i < VECTORS.size(); i++) {
-      builder.addGraphNode(i);
-    }
-
-    builder.finish();
-    return builder.getGraph();
-  }
-
-  private static class RAVectorValues<T> implements RandomAccessVectorValues<T> {
-
-    private final List<T> vectors;
-    private final int dim;
-
-    RAVectorValues(List<T> vectors, int dim) {
-      this.vectors = vectors;
-      this.dim = dim;
-    }
-
-    @Override
-    public int size() {
-      return vectors.size();
-    }
-
-    @Override
-    public int dimension() {
-      return dim;
-    }
-
-    @Override
-    public T vectorValue(int targetOrd) {
-      return vectors.get(targetOrd);
-    }
-
-    @Override
-    public RandomAccessVectorValues<T> copy() {
-      return this;
     }
   }
 }

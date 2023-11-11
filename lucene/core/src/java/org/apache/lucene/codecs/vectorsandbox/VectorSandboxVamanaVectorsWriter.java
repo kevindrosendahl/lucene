@@ -1013,14 +1013,6 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     return docsWithField;
   }
 
-  private static DocsWithFieldSet vectorDocs(DocIdSetIterator vectorValues) throws IOException {
-    DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-    for (int docV = vectorValues.nextDoc(); docV != NO_MORE_DOCS; docV = vectorValues.nextDoc()) {
-      docsWithField.add(docV);
-    }
-    return docsWithField;
-  }
-
   @Override
   public void close() throws IOException {
     IOUtils.close(meta, vectorData, vectorIndex, quantizedVectorData);

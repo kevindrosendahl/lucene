@@ -50,7 +50,6 @@ public final class VectorSandboxFastIngestVectorsReader extends KnnVectorsReader
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxFastIngestVectorsFormat.class);
 
-  private final FieldInfos fieldInfos;
   private final KnnVectorsReader wrapped;
   private final Map<String, FieldEntry> fields = new HashMap<>();
   private final Map<String, Boolean> delegated = new HashMap<>();
@@ -58,7 +57,6 @@ public final class VectorSandboxFastIngestVectorsReader extends KnnVectorsReader
 
   VectorSandboxFastIngestVectorsReader(SegmentReadState state, KnnVectorsReader wrapped)
       throws IOException {
-    this.fieldInfos = state.fieldInfos;
     this.wrapped = wrapped;
     int versionMeta = readMetadata(state);
     boolean success = false;
