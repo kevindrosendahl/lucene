@@ -33,33 +33,32 @@ import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 /** ProductQuantization */
 public class ProductQuantization {
 
-  private static final Random RANDOM = new Random(13);
+  private static final Random RANDOM = new Random(0);
   private static final ForkJoinPool FORK_JOIN_POOL =
-      new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+      new ForkJoinPool(1);
 
   // TODO: consider normalizing around the global centroid for euclidean
   public static ProductQuantization compute(
-      RandomAccessVectorValues<float[]> ravv, int M, VectorSimilarityFunction similarityFunction)
+      RandomAccessVectorValues<float[]> ravv, int M)
       throws IOException {
-    return compute(ravv, M, similarityFunction, RANDOM);
+    return compute(ravv, M, RANDOM);
   }
 
   public static ProductQuantization compute(
       RandomAccessVectorValues<float[]> ravv,
       int M,
-      VectorSimilarityFunction similarityFunction,
       Random random)
       throws IOException {
     var trainingVectors = sampleTrainingVectors(ravv, MAX_PQ_TRAINING_SET_SIZE, random);
     var subvectorInfos = getSubvectorInfo(ravv.dimension(), M);
-    var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, similarityFunction, random);
-    return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
+    var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, random);
+    return new ProductQuantization(codebooks, subvectorInfos);
   }
 
   public static ProductQuantization fromCodebooks(
       Codebook[] codebooks, int dimensions, int M, VectorSimilarityFunction similarityFunction) {
     var subvectorInfos = getSubvectorInfo(dimensions, M);
-    return new ProductQuantization(codebooks, subvectorInfos, similarityFunction);
+    return new ProductQuantization(codebooks, subvectorInfos);
   }
 
   // Cannot go above 256 since we're packing these values into a byte.
@@ -71,7 +70,6 @@ public class ProductQuantization {
   private final int M;
   private final SubvectorInfo[] subvectorInfos;
   private final int decodedDimensionSize;
-  private final VectorSimilarityFunction similarityFunction;
 
   private static class SubvectorInfo {
 
@@ -116,13 +114,11 @@ public class ProductQuantization {
 
   private ProductQuantization(
       Codebook[] codebooks,
-      SubvectorInfo[] subvectorInfos,
-      VectorSimilarityFunction similarityFunction) {
+      SubvectorInfo[] subvectorInfos) {
     this.codebooks = codebooks;
     this.M = codebooks.length;
     this.subvectorInfos = subvectorInfos;
     this.decodedDimensionSize = Arrays.stream(subvectorInfos).mapToInt(info -> info.size).sum();
-    this.similarityFunction = similarityFunction;
   }
 
   public Codebook[] codebooks() {
@@ -137,7 +133,7 @@ public class ProductQuantization {
     byte[] encoded = new byte[M];
     for (int m = 0; m < M; m++) {
       var subVector = getSubVector(vector, m, this.subvectorInfos);
-      encoded[m] = (byte) closestCentroidIndex(subVector, codebooks[m], this.similarityFunction);
+      encoded[m] = (byte) closestCentroidIndex(subVector, codebooks[m]);
     }
     return encoded;
   }
@@ -159,12 +155,12 @@ public class ProductQuantization {
   }
 
   private static int closestCentroidIndex(
-      float[] subvector, Codebook codebook, VectorSimilarityFunction similarityFunction) {
+      float[] subvector, Codebook codebook) {
     int closestIndex = 0;
     float closestDistance = Float.MAX_VALUE;
 
     for (int i = 0; i < codebook.size(); i++) {
-      float distance = distance(subvector, codebook.centroid(i), similarityFunction);
+      float distance = distance(subvector, codebook.centroid(i));
       if (distance < closestDistance) {
         closestDistance = distance;
         closestIndex = i;
@@ -178,16 +174,12 @@ public class ProductQuantization {
       List<float[]> vectors,
       int M,
       SubvectorInfo[] subvectorInfos,
-      VectorSimilarityFunction similarityFunction,
       Random random) {
     return FORK_JOIN_POOL
         .submit(
             () ->
                 IntStream.range(0, M)
-                    .mapToObj(
-                        m ->
-                            clusterSubvectors(
-                                vectors, m, subvectorInfos, similarityFunction, random))
+                    .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))
         .join();
@@ -196,13 +188,10 @@ public class ProductQuantization {
   private static float[][] clusterSubvectors(
       List<float[]> vectors,
       int m,
-      SubvectorInfo[] subvectorInfos,
-      VectorSimilarityFunction similarityFunction,
-      Random random) {
+      SubvectorInfo[] subvectorInfos) {
     float[][] subvectors =
         vectors.stream().map(v -> getSubVector(v, m, subvectorInfos)).toArray(float[][]::new);
-//    var clusterer = new KMeansPlusPlusClusterer(similarityFunction, K_MEANS_ITERATIONS, random);
-    var clusterer = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, K_MEANS_ITERATIONS, random);
+    var clusterer = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, K_MEANS_ITERATIONS);
     return clusterer.cluster(subvectors, CLUSTERS);
   }
 
@@ -237,7 +226,7 @@ public class ProductQuantization {
   }
 
   private static float distance(
-      float[] v1, float[] v2, VectorSimilarityFunction similarityFunction) {
-    return 1 - similarityFunction.compare(v1, v2);
+      float[] v1, float[] v2) {
+    return VectorUtil.squareDistance(v1, v2);
   }
 }

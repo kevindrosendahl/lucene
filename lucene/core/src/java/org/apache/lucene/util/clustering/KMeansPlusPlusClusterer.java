@@ -30,11 +30,11 @@ public class KMeansPlusPlusClusterer implements Clusterer {
   private final Random random;
 
   public KMeansPlusPlusClusterer(
-      BiFunction<float[], float[], Float> distanceFunction, int maxIterations, Random random) {
+      BiFunction<float[], float[], Float> distanceFunction, int maxIterations) {
     this.distanceFunction = distanceFunction;
 //    this.similarityFunction = similarityFunction;
     this.maxIterations = maxIterations;
-    this.random = random;
+    this.random = new Random(0);
   }
 
   @Override

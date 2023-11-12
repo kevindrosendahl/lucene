@@ -2,9 +2,9 @@ package org.apache.lucene.util.pq;
 
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
+import org.apache.lucene.util.vamana.ListRandomAccessVectorValues;
 import org.junit.Test;
 
 public class TestPQParity {
@@ -24,9 +24,16 @@ public class TestPQParity {
   }
 
   @Test
-  public void testParity() {
-    var kmeans = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, 6, new Random(0));
+  public void testKmeansParity() {
+    var kmeans = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, 6);
     float[][] clusters = kmeans.cluster(VECTORS, 64);
     System.out.println("clusters = " + Arrays.deepToString(clusters));
+  }
+
+  @Test
+  public void testPQParity() throws Exception {
+    var ravv = new ListRandomAccessVectorValues<>(Arrays.stream(VECTORS).toList(), VECTOR_DIMENSIONS);
+    var pq = ProductQuantization.compute(ravv, 2);
+    System.out.println("pq = " + pq);
   }
 }

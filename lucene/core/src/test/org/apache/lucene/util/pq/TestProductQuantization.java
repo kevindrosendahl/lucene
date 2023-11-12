@@ -38,7 +38,7 @@ public class TestProductQuantization extends LuceneTestCase {
     }
 
     var ravv = MockVectorValues.fromValues(vectors);
-    var pq = ProductQuantization.compute(ravv, 2, VectorSimilarityFunction.EUCLIDEAN, random);
+    var pq = ProductQuantization.compute(ravv, 2, random);
     var encoded = Arrays.stream(vectors).map(pq::encode).toList();
 
     for (int i = 0; i < numVectors; i++) {

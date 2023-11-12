@@ -288,8 +288,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       RandomAccessVectorValues<float[]> vectors =
           new RAVectorValues<>((List<float[]>) fieldData.vectors, fieldData.dim);
       pq =
-          ProductQuantization.compute(
-              vectors, pqFactor, fieldData.fieldInfo.getVectorSimilarityFunction());
+          ProductQuantization.compute(vectors, pqFactor);
       writePqData(new RAVectorValues<>((List<float[]>) fieldData.vectors, fieldData.dim), pq);
     }
     long pqDataLength = pqData.getFilePointer() - pqDataOffset;
@@ -707,8 +706,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
                 byteSize);
 
         pq =
-            ProductQuantization.compute(
-                vectorValues, pqFactor, fieldInfo.getVectorSimilarityFunction());
+            ProductQuantization.compute(vectorValues, pqFactor);
         writePqData(vectorValues, pq);
       }
       long pqDataLength = pqData.getFilePointer() - pqDataOffset;
