@@ -36,6 +36,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
@@ -404,22 +406,78 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
 
+      KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
         byte[] encodedQuery = fieldEntry.pq.encode(target);
         byte[][] encoded = pqVectors.get(field);
+        RandomVectorScorer exactScorer = scorer;
         scorer =
-            new RandomVectorScorer() {
-              @Override
-              public float score(int node) throws IOException {
-                byte[] encodedNode = encoded[node];
-                return fieldEntry.similarityFunction.compare(encodedQuery, encodedNode);
-              }
+            node -> {
+              byte[] encodedNode = encoded[node];
+              return fieldEntry.similarityFunction.compare(encodedQuery, encodedNode);
             };
+
+        KnnCollector wrapped = collector;
+        collector = new KnnCollector() {
+          @Override
+          public boolean earlyTerminated() {
+            return wrapped.earlyTerminated();
+          }
+
+          @Override
+          public void incVisitedCount(int count) {
+            wrapped.incVisitedCount(count);
+          }
+
+          @Override
+          public long visitedCount() {
+            return wrapped.visitedCount();
+          }
+
+          @Override
+          public long visitLimit() {
+            return wrapped.visitLimit();
+          }
+
+          @Override
+          public int k() {
+            return wrapped.k();
+          }
+
+          @Override
+          public boolean collect(int docId, float similarity) {
+            return wrapped.collect(docId, similarity);
+          }
+
+          @Override
+          public float minCompetitiveSimilarity() {
+            return wrapped.minCompetitiveSimilarity();
+          }
+
+          @Override
+          public TopDocs topDocs() {
+            var totalHits = wrapped.topDocs().totalHits;
+            var wrappedScoreDocs = wrapped.topDocs().scoreDocs;
+
+            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+            for (int i = 0; i < scoreDocs.length; i++) {
+              try {
+                int doc = wrappedScoreDocs[i].doc;
+                float score = exactScorer.score(doc);
+                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            }
+
+            return new TopDocs(totalHits, scoreDocs);
+          }
+        };
       }
 
       VamanaGraphSearcher.search(
           scorer,
-          new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc),
+          collector,
           getGraph(fieldEntry),
           // FIXME: support filtered
           //          vectorValues.getAcceptOrds(acceptDocs));
