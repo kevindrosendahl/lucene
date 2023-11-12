@@ -20,6 +20,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import java.util.Random;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.VectorUtil;
 import org.junit.Test;
 
 public class TestKmeansPlusPlus extends LuceneTestCase {
@@ -45,7 +46,8 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     int maxIterations = 6;
 
     float[][] centroids =
-        new KMeansPlusPlusClusterer(similarityFunction, maxIterations, random).cluster(points, k);
+        new KMeansPlusPlusClusterer(VectorUtil::squareDistance, maxIterations, random).cluster(points, k);
+//    new KMeansPlusPlusClusterer(similarityFunction, maxIterations, random).cluster(points, k);
     assertNotNull("centroids should not be null", centroids);
 
     // There should be k centroids, and they should have the same dimensionality as the original
@@ -91,7 +93,8 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     VectorSimilarityFunction simFunc = VectorSimilarityFunction.EUCLIDEAN;
     Random random = random();
     int maxIterations = 100;
-    new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+//    new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+    new KMeansPlusPlusClusterer(VectorUtil::squareDistance, maxIterations, random).cluster(points, k);
   }
 
   @Test
@@ -104,7 +107,8 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     Random random = random();
     int maxIterations = 100;
     float[][] centroids =
-        new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+//        new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+    new KMeansPlusPlusClusterer(VectorUtil::squareDistance, maxIterations, random).cluster(points, k);
 
     assertEquals("Should have two centroids", 2, centroids.length);
   }
@@ -119,7 +123,8 @@ public class TestKmeansPlusPlus extends LuceneTestCase {
     Random random = random();
     int maxIterations = 100;
     float[][] centroids =
-        new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+//        new KMeansPlusPlusClusterer(simFunc, maxIterations, random).cluster(points, k);
+    new KMeansPlusPlusClusterer(VectorUtil::squareDistance, maxIterations, random).cluster(points, k);
 
     assertEquals("Should have one centroid", 1, centroids.length);
   }

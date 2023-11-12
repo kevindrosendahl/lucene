@@ -76,6 +76,7 @@ grant {
   permission java.util.PropertyPermission "user.language", "write";
   // timezone randomization
   permission java.util.PropertyPermission "user.timezone", "write";
+  permission java.util.PropertyPermission "user.timezone", "write";
 
   // CMS randomization
   permission java.util.PropertyPermission "lucene.cms.override_core_count", "write";

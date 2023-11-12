@@ -18,18 +18,21 @@ package org.apache.lucene.util.clustering;
 
 import java.util.Arrays;
 import java.util.Random;
+import java.util.function.BiFunction;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
 /** KMeansPlusPlusClusterer */
 public class KMeansPlusPlusClusterer implements Clusterer {
 
-  private final VectorSimilarityFunction similarityFunction;
+  private final BiFunction<float[], float[], Float> distanceFunction;
+//  private final VectorSimilarityFunction similarityFunction;
   private final int maxIterations;
   private final Random random;
 
   public KMeansPlusPlusClusterer(
-      VectorSimilarityFunction similarityFunction, int maxIterations, Random random) {
-    this.similarityFunction = similarityFunction;
+      BiFunction<float[], float[], Float> distanceFunction, int maxIterations, Random random) {
+    this.distanceFunction = distanceFunction;
+//    this.similarityFunction = similarityFunction;
     this.maxIterations = maxIterations;
     this.random = random;
   }
@@ -40,14 +43,15 @@ public class KMeansPlusPlusClusterer implements Clusterer {
       throw new IllegalArgumentException("invalid number of clusters: " + k);
     }
 
-    var runner = new ClusterRun(points, k, this.similarityFunction, random);
+    var runner = new ClusterRun(points, k, this.distanceFunction, random);
     return runner.run(this.maxIterations);
   }
 
   private static class ClusterRun {
 
     private final int k;
-    private final VectorSimilarityFunction similarityFunction;
+//    private final VectorSimilarityFunction similarityFunction;
+    private final BiFunction<float[], float[], Float> distanceFunction;;
     private final Random random;
     private final float[][] points;
     private int[] assignments;
@@ -56,10 +60,11 @@ public class KMeansPlusPlusClusterer implements Clusterer {
     private float[][] centroids;
 
     private ClusterRun(
-        float[][] points, int k, VectorSimilarityFunction similarityFunction, Random random) {
+        float[][] points, int k, BiFunction<float[], float[], Float> distanceFunction, Random random) {
       this.points = points;
       this.k = k;
-      this.similarityFunction = similarityFunction;
+      this.distanceFunction = distanceFunction;
+//      this.similarityFunction = similarityFunction;
       this.random = random;
       this.assignments = new int[points.length];
       this.clusterSizes = new int[k];
@@ -70,10 +75,11 @@ public class KMeansPlusPlusClusterer implements Clusterer {
     private float[][] run(int maxIterations) {
       initialize();
       for (int i = 0; i < maxIterations; i++) {
-        if (reassignPoints() <= 0.01 * points.length) {
+        recalculateCentroids();
+        int changedCount = reassignPoints();
+        if (changedCount <= 0.01 * points.length) {
           break;
         }
-        recalculateCentroids();
       }
       return centroids;
     }
@@ -199,7 +205,8 @@ public class KMeansPlusPlusClusterer implements Clusterer {
     }
 
     private float distance(float[] v1, float[] v2) {
-      return 1 - similarityFunction.compare(v1, v2);
+//      return 1 - similarityFunction.compare(v1, v2);
+      return this.distanceFunction.apply(v1, v2);
     }
   }
 }

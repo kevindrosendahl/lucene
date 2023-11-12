@@ -26,6 +26,7 @@ import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 
@@ -200,7 +201,8 @@ public class ProductQuantization {
       Random random) {
     float[][] subvectors =
         vectors.stream().map(v -> getSubVector(v, m, subvectorInfos)).toArray(float[][]::new);
-    var clusterer = new KMeansPlusPlusClusterer(similarityFunction, K_MEANS_ITERATIONS, random);
+//    var clusterer = new KMeansPlusPlusClusterer(similarityFunction, K_MEANS_ITERATIONS, random);
+    var clusterer = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, K_MEANS_ITERATIONS, random);
     return clusterer.cluster(subvectors, CLUSTERS);
   }
 
