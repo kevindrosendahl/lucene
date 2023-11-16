@@ -42,7 +42,6 @@ public class TestFastIngest extends LuceneTestCase {
   }
 
   @Test
-  @Ignore
   public void compareWithNonWrapped() throws Exception {
     var codec =
         new Lucene99Codec() {
@@ -56,10 +55,13 @@ public class TestFastIngest extends LuceneTestCase {
         new Lucene99Codec() {
           @Override
           public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-            return new VectorSandboxFastIngestVectorsFormat(
-                //            new VectorSandboxVamanaVectorsFormat(32, 100, 1.2f, null));
-                new Lucene99HnswVectorsFormat(32, 100));
-          }
+            return new VectorSandboxFastIngestVectorsFormat() {
+              @Override
+              public KnnVectorsFormat getWrapped() {
+                return new VectorSandboxVamanaVectorsFormat(64, 100, 1.2f, 0, null);
+              }
+            };
+          };
         };
 
     try (var directory = new ByteBuffersDirectory()) {

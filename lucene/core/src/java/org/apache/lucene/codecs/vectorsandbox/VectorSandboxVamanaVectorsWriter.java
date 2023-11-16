@@ -287,8 +287,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     if (pqFactor > 0) {
       RandomAccessVectorValues<float[]> vectors =
           new RAVectorValues<>((List<float[]>) fieldData.vectors, fieldData.dim);
+      int pqDims = fieldData.dim / pqFactor;
       pq =
-          ProductQuantization.compute(vectors, pqFactor);
+          ProductQuantization.compute(vectors, pqDims);
       writePqData(new RAVectorValues<>((List<float[]>) fieldData.vectors, fieldData.dim), pq);
     }
     long pqDataLength = pqData.getFilePointer() - pqDataOffset;
@@ -705,8 +706,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
                 vectorDataInput,
                 byteSize);
 
+        int pqDims = fieldInfo.getVectorDimension() / pqFactor;
         pq =
-            ProductQuantization.compute(vectorValues, pqFactor);
+            ProductQuantization.compute(vectorValues, pqDims);
         writePqData(vectorValues, pq);
       }
       long pqDataLength = pqData.getFilePointer() - pqDataOffset;
@@ -1230,7 +1232,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
       docsWithField.add(docID);
       vectors.add(copy);
-      vamanaGraphBuilder.addGraphNode(node);
+//      vamanaGraphBuilder.addGraphNode(node);
       node++;
       lastDocID = docID;
     }

@@ -35,5 +35,8 @@ public class TestPQParity {
     var ravv = new ListRandomAccessVectorValues<>(Arrays.stream(VECTORS).toList(), VECTOR_DIMENSIONS);
     var pq = ProductQuantization.compute(ravv, 2);
     System.out.println("pq = " + pq);
+
+    var encoded = pq.encode(VECTORS[13]);
+    System.out.println("encoded = " + encoded);
   }
 }

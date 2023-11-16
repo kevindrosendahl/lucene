@@ -71,16 +71,8 @@ public class ProductQuantization {
   private final SubvectorInfo[] subvectorInfos;
   private final int decodedDimensionSize;
 
-  private static class SubvectorInfo {
+  private record SubvectorInfo(int size, int offset) {}
 
-    final int size;
-    final int offset;
-
-    public SubvectorInfo(int size, int offset) {
-      this.size = size;
-      this.offset = offset;
-    }
-  }
 
   public static class Codebook {
 
@@ -179,6 +171,7 @@ public class ProductQuantization {
         .submit(
             () ->
                 IntStream.range(0, M)
+                    .parallel()
                     .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))

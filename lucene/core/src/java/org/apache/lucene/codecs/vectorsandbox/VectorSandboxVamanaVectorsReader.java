@@ -21,8 +21,11 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.VamanaGraphProvider;
@@ -446,6 +449,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
           @Override
           public boolean collect(int docId, float similarity) {
+            // FIXME: maybe keep map of vectors here
             return wrapped.collect(docId, similarity);
           }
 
@@ -470,6 +474,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               }
             }
 
+            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
             return new TopDocs(totalHits, scoreDocs);
           }
         };

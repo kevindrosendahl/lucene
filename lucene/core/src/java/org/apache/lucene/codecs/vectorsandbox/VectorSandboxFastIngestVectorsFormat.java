@@ -25,7 +25,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 /** Ingests vectors without indexing them, and indexes them on merge */
-public final class VectorSandboxFastIngestVectorsFormat extends KnnVectorsFormat {
+public class VectorSandboxFastIngestVectorsFormat extends KnnVectorsFormat {
 
   static final String META_CODEC_NAME = "VectorSandboxFastIngestVectorsFormatMeta";
   static final String VECTOR_DATA_CODEC_NAME = "VectorSandboxFastIngestVectorsFormatData";
@@ -35,27 +35,22 @@ public final class VectorSandboxFastIngestVectorsFormat extends KnnVectorsFormat
   public static final int VERSION_START = 0;
   public static final int VERSION_CURRENT = VERSION_START;
 
-  private final KnnVectorsFormat wrapped;
-
   public VectorSandboxFastIngestVectorsFormat() {
-    // FIXME: this is resulting in issues when loading from SPI, it instantiates the vamana format
-    // always even if you're trying to wrap something else
-    this(new VectorSandboxVamanaVectorsFormat());
+    super("VectorSandboxFastIngestVectorsFormat");
   }
 
-  public VectorSandboxFastIngestVectorsFormat(KnnVectorsFormat wrapped) {
-    super("VectorSandboxFastIngestVectorsFormat");
-    this.wrapped = wrapped;
+  public KnnVectorsFormat getWrapped() {
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-    return new VectorSandboxFastIngestVectorsWriter(state, wrapped.fieldsWriter(state));
+    return new VectorSandboxFastIngestVectorsWriter(state, getWrapped().fieldsWriter(state));
   }
 
   @Override
   public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-    return new VectorSandboxFastIngestVectorsReader(state, wrapped.fieldsReader(state));
+    return new VectorSandboxFastIngestVectorsReader(state, getWrapped().fieldsReader(state));
   }
 
   @Override
