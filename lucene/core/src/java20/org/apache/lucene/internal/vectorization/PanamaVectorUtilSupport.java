@@ -30,6 +30,7 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.util.Constants;
 
+
 /**
  * VectorUtil methods implemented with Panama incubating vector API.
  *
@@ -180,6 +181,148 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
   }
 
   @Override
+  public float dotProduct(float[] v1, int v1offset, float[] v2, int v2offset, final int length)
+  {
+    //Common case first
+    if (length >= FloatVector.SPECIES_PREFERRED.length())
+      return dotProductPreferred(v1, v1offset, v2, v2offset, length);
+
+    if (length < FloatVector.SPECIES_128.length())
+      return dotProduct64(v1, v1offset, v2, v2offset, length);
+    else if (length < FloatVector.SPECIES_256.length())
+      return dotProduct128(v1, v1offset, v2, v2offset, length);
+    else
+      return dotProduct256(v1, v1offset, v2, v2offset, length);
+
+  }
+
+  float dotProduct64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+
+    if (length == FloatVector.SPECIES_64.length())
+      return dot64(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_64.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_64);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_64.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_64, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_64, v2, v2offset + i);
+      sum = fma(a, b, sum);
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i)
+      res += v1[v1offset + i] * v2[v2offset + i];
+
+    return res;
+  }
+
+  float dotProduct128(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+
+    if (length == FloatVector.SPECIES_128.length())
+      return dot128(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_128.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_128);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_128.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_128, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_128, v2, v2offset + i);
+      sum = fma(a, b, sum);
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i)
+      res += v1[v1offset + i] * v2[v2offset + i];
+
+    return res;
+  }
+
+
+  float dotProduct256(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+
+    if (length == FloatVector.SPECIES_256.length())
+      return dot256(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_256.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_256);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_256.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_256, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_256, v2, v2offset + i);
+      sum = fma(a, b, sum);
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i)
+      res += v1[v1offset + i] * v2[v2offset + i];
+
+    return res;
+  }
+
+  static float dotProductPreferred(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+
+    if (length == FloatVector.SPECIES_PREFERRED.length())
+      return dotPreferred(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_PREFERRED);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, v2offset + i);
+      sum = fma(a, b, sum);
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i)
+      res += v1[v1offset + i] * v2[v2offset + i];
+
+    return res;
+  }
+
+  static float dot64(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_64, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_64, v2, offset2);
+    return a.mul(b).reduceLanes(ADD);
+  }
+
+  static float dot128(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_128, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_128, v2, offset2);
+    return a.mul(b).reduceLanes(ADD);
+  }
+
+  static float dot256(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_256, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_256, v2, offset2);
+    return a.mul(b).reduceLanes(ADD);
+  }
+
+  static float dotPreferred(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, offset2);
+    return a.mul(b).reduceLanes(ADD);
+  }
+
+
+  @Override
   public float cosine(float[] a, float[] b) {
     int i = 0;
     float sum = 0;
@@ -313,6 +456,159 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     FloatVector res1 = acc1.add(acc2);
     FloatVector res2 = acc3.add(acc4);
     return res1.add(res2).reduceLanes(ADD);
+  }
+
+  @Override
+  public float squareDistance(float[] v1, int v1offset, float[] v2, int v2offset, final int length)
+  {
+    //Common case first
+    if (length >= FloatVector.SPECIES_PREFERRED.length())
+      return squareDistancePreferred(v1, v1offset, v2, v2offset, length);
+
+    if (length < FloatVector.SPECIES_128.length())
+      return squareDistance64(v1, v1offset, v2, v2offset, length);
+    else if (length < FloatVector.SPECIES_256.length())
+      return squareDistance128(v1, v1offset, v2, v2offset, length);
+    else
+      return squareDistance256(v1, v1offset, v2, v2offset, length);
+  }
+
+   float squareDistance64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+    if (length == FloatVector.SPECIES_64.length())
+      return squareDistance64(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_64.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_64);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_64.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_64, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_64, v2, v2offset + i);
+      var diff = a.sub(b);
+      sum = sum.add(diff.mul(diff));
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i) {
+      var diff = v1[v1offset + i] - v2[v2offset + i];
+      res += diff * diff;
+    }
+
+    return res;
+  }
+
+  float squareDistance128(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+    if (length == FloatVector.SPECIES_128.length())
+      return squareDistance128(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_128.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_128);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_128.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_128, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_128, v2, v2offset + i);
+      var diff = a.sub(b);
+      sum = sum.add(diff.mul(diff));
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i) {
+      var diff = v1[v1offset + i] - v2[v2offset + i];
+      res += diff * diff;
+    }
+
+    return res;
+  }
+
+
+  float squareDistance256(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+    if (length == FloatVector.SPECIES_256.length())
+      return squareDistance256(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_256.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_256);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_256.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_256, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_256, v2, v2offset + i);
+      var diff = a.sub(b);
+      sum = sum.add(diff.mul(diff));
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i) {
+      var diff = v1[v1offset + i] - v2[v2offset + i];
+      res += diff * diff;
+    }
+
+    return res;
+  }
+
+  float squareDistancePreferred(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+
+    if (length == FloatVector.SPECIES_PREFERRED.length())
+      return squareDistancePreferred(v1, v1offset, v2, v2offset);
+
+    final int vectorizedLength = FloatVector.SPECIES_PREFERRED.loopBound(length);
+    FloatVector sum = FloatVector.zero(FloatVector.SPECIES_PREFERRED);
+
+    int i = 0;
+    // Process the vectorized part
+    for (; i < vectorizedLength; i += FloatVector.SPECIES_PREFERRED.length()) {
+      FloatVector a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, v1offset + i);
+      FloatVector b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, v2offset + i);
+      var diff = a.sub(b);
+      sum = sum.add(diff.mul(diff));
+    }
+
+    float res = sum.reduceLanes(ADD);
+
+    // Process the tail
+    for (; i < length; ++i) {
+      var diff = v1[v1offset + i] - v2[v2offset + i];
+      res += diff * diff;
+    }
+
+    return res;
+  }
+
+  static float squareDistance64(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_64, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_64, v2, offset2);
+    var diff = a.sub(b);
+    return diff.mul(diff).reduceLanes(ADD);
+  }
+
+  static float squareDistance128(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_128, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_128, v2, offset2);
+    var diff = a.sub(b);
+    return diff.mul(diff).reduceLanes(ADD);
+  }
+
+  static float squareDistance256(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_256, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_256, v2, offset2);
+    var diff = a.sub(b);
+    return diff.mul(diff).reduceLanes(ADD);
+  }
+
+  static float squareDistancePreferred(float[] v1, int offset1, float[] v2, int offset2) {
+    var a = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v1, offset1);
+    var b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, offset2);
+    var diff = a.sub(b);
+    return diff.mul(diff).reduceLanes(ADD);
   }
 
   // Binary functions, these all follow a general pattern like this:

@@ -57,7 +57,7 @@ public class ProductQuantization {
   }
 
   // Cannot go above 256 since we're packing these values into a byte.
-  private static final int CLUSTERS = 256;
+  public static final int CLUSTERS = 256;
   private static final int K_MEANS_ITERATIONS = 6;
   private static final int MAX_PQ_TRAINING_SET_SIZE = 128000;
 
@@ -66,7 +66,7 @@ public class ProductQuantization {
   private final SubvectorInfo[] subvectorInfos;
   private final int decodedDimensionSize;
 
-  private record SubvectorInfo(int size, int offset) {}
+  public record SubvectorInfo(int size, int offset) {}
 
   public static class Codebook {
 
@@ -130,6 +130,10 @@ public class ProductQuantization {
           centroid, 0, target, this.subvectorInfos[m].offset, this.subvectorInfos[m].size);
     }
     return target;
+  }
+
+  public SubvectorInfo subvectorInfo(int subvector) {
+    return this.subvectorInfos[subvector];
   }
 
   private static float[] getSubVector(float[] vector, int m, SubvectorInfo[] subvectorInfos) {

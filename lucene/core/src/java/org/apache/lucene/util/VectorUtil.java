@@ -42,6 +42,12 @@ public final class VectorUtil {
     return r;
   }
 
+  public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+    float r = IMPL.dotProduct(a, aOffset, b, bOffset, length);
+    assert Float.isFinite(r);
+    return r;
+  }
+
   /**
    * Returns the cosine similarity between the two vectors.
    *
@@ -74,6 +80,12 @@ public final class VectorUtil {
       throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
     }
     float r = IMPL.squareDistance(a, b);
+    assert Float.isFinite(r);
+    return r;
+  }
+
+  public static float squareDistance(float[] a, int aOffset, float[] b, int bOffset, int length) {
+    float r = IMPL.squareDistance(a, aOffset, b, bOffset, length);
     assert Float.isFinite(r);
     return r;
   }
@@ -189,5 +201,9 @@ public final class VectorUtil {
       }
     }
     return v;
+  }
+
+  public static float assembleAndSum(float[] data, int dataBase, byte[] dataOffsets) {
+    return IMPL.assembleAndSum(data, dataBase, dataOffsets);
   }
 }

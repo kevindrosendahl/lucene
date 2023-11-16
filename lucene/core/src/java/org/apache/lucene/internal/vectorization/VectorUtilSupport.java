@@ -27,11 +27,16 @@ public interface VectorUtilSupport {
   /** Calculates the dot product of the given float arrays. */
   float dotProduct(float[] a, float[] b);
 
+ float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
+
+
   /** Returns the cosine similarity between the two vectors. */
   float cosine(float[] v1, float[] v2);
 
   /** Returns the sum of squared differences of the two vectors. */
   float squareDistance(float[] a, float[] b);
+
+  float squareDistance(float[] a, int aOffset, float[] b, int bOffset, int length);
 
   /** Returns the dot product computed over signed bytes. */
   int dotProduct(byte[] a, byte[] b);
@@ -41,4 +46,12 @@ public interface VectorUtilSupport {
 
   /** Returns the sum of squared differences of the two byte vectors. */
   int squareDistance(byte[] a, byte[] b);
+
+  default float assembleAndSum(float[] data, int dataBase, byte[] dataOffsets) {
+    float sum = 0f;
+    for (int i = 0; i < dataOffsets.length; i++) {
+      sum += data[dataBase * i + Byte.toUnsignedInt(dataOffsets[i])];
+    }
+    return sum;
+  }
 }

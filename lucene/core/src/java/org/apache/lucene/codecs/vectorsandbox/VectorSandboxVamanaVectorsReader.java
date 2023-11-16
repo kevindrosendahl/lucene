@@ -427,28 +427,30 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           //          vectorValues.getAcceptOrds(acceptDocs));
           acceptDocs);
 
-      collector.rerank(
-          topDocs -> {
-            var exactScorer =
-                RandomVectorScorer.createFloats(
-                    vectorValues, fieldEntry.similarityFunction, target);
-            var totalHits = topDocs.totalHits;
-            var wrappedScoreDocs = topDocs.scoreDocs;
+      if (pqVectors.containsKey(field)) {
+        collector.rerank(
+            topDocs -> {
+              var exactScorer =
+                  RandomVectorScorer.createFloats(
+                      vectorValues, fieldEntry.similarityFunction, target);
+              var totalHits = topDocs.totalHits;
+              var wrappedScoreDocs = topDocs.scoreDocs;
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-            for (int i = 0; i < scoreDocs.length; i++) {
-              try {
-                int doc = wrappedScoreDocs[i].doc;
-                float score = exactScorer.score(doc);
-                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-              } catch (Exception e) {
-                throw new RuntimeException(e);
+              ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+              for (int i = 0; i < scoreDocs.length; i++) {
+                try {
+                  int doc = wrappedScoreDocs[i].doc;
+                  float score = exactScorer.score(doc);
+                  scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
+                }
               }
-            }
 
-            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-            return new TopDocs(totalHits, scoreDocs);
-          });
+              Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+              return new TopDocs(totalHits, scoreDocs);
+            });
+      }
     }
   }
 
