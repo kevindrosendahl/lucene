@@ -17,7 +17,10 @@
 
 package org.apache.lucene.search;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import org.apache.lucene.util.hnsw.NeighborQueue;
+import org.apache.lucene.util.vamana.RandomVectorScorer;
 
 /**
  * TopKnnCollector is a specific KnnCollector. A minHeap is used to keep track of the currently
@@ -28,6 +31,7 @@ import org.apache.lucene.util.hnsw.NeighborQueue;
 public final class TopKnnCollector extends AbstractKnnCollector {
 
   private final NeighborQueue queue;
+  private TopDocs topDocs;
 
   /**
    * @param k the number of neighbors to collect
@@ -50,6 +54,43 @@ public final class TopKnnCollector extends AbstractKnnCollector {
 
   @Override
   public TopDocs topDocs() {
+    getTopDocs();
+    return topDocs;
+  }
+
+  @Override
+  public void rerank(RandomVectorScorer scorer) {
+    getTopDocs();
+    var totalHits = topDocs.totalHits;
+    var wrappedScoreDocs = topDocs.scoreDocs;
+
+    ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+    for (int i = 0; i < scoreDocs.length; i++) {
+      try {
+        int doc = wrappedScoreDocs[i].doc;
+        float score = scorer.score(doc);
+        scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+    synchronized (this) {
+      this.topDocs = new TopDocs(totalHits, scoreDocs);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "TopKnnCollector[k=" + k() + ", size=" + queue.size() + "]";
+  }
+
+  private synchronized void getTopDocs() {
+    if (topDocs != null) {
+      return;
+    }
+
     assert queue.size() <= k() : "Tried to collect more results than the maximum number allowed";
     ScoreDoc[] scoreDocs = new ScoreDoc[queue.size()];
     for (int i = 1; i <= scoreDocs.length; i++) {
@@ -60,11 +101,6 @@ public final class TopKnnCollector extends AbstractKnnCollector {
         earlyTerminated()
             ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
             : TotalHits.Relation.EQUAL_TO;
-    return new TopDocs(new TotalHits(visitedCount(), relation), scoreDocs);
-  }
-
-  @Override
-  public String toString() {
-    return "TopKnnCollector[k=" + k() + ", size=" + queue.size() + "]";
+    this.topDocs = new TopDocs(new TotalHits(visitedCount(), relation), scoreDocs);
   }
 }

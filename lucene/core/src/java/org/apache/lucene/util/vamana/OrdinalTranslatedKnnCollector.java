@@ -80,4 +80,9 @@ public final class OrdinalTranslatedKnnCollector implements KnnCollector {
                 : TotalHits.Relation.EQUAL_TO),
         td.scoreDocs);
   }
+
+  @Override
+  public void rerank(RandomVectorScorer scorer) {
+    in.rerank(scorer);
+  }
 }

@@ -316,7 +316,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -409,74 +409,15 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
 
-      KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
+      KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector,
+          vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
-        RandomVectorScorer exactScorer = scorer;
         scorer =
             node -> {
               float[] decoded = fieldEntry.pq.decode(encoded[node]);
               return fieldEntry.similarityFunction.compare(target, decoded);
             };
-
-        KnnCollector wrapped = collector;
-        collector = new KnnCollector() {
-          @Override
-          public boolean earlyTerminated() {
-            return wrapped.earlyTerminated();
-          }
-
-          @Override
-          public void incVisitedCount(int count) {
-            wrapped.incVisitedCount(count);
-          }
-
-          @Override
-          public long visitedCount() {
-            return wrapped.visitedCount();
-          }
-
-          @Override
-          public long visitLimit() {
-            return wrapped.visitLimit();
-          }
-
-          @Override
-          public int k() {
-            return wrapped.k();
-          }
-
-          @Override
-          public boolean collect(int docId, float similarity) {
-            // FIXME: maybe keep map of vectors here
-            return wrapped.collect(docId, similarity);
-          }
-
-          @Override
-          public float minCompetitiveSimilarity() {
-            return wrapped.minCompetitiveSimilarity();
-          }
-
-          @Override
-          public TopDocs topDocs() {
-            var totalHits = wrapped.topDocs().totalHits;
-            var wrappedScoreDocs = wrapped.topDocs().scoreDocs;
-
-            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-            for (int i = 0; i < scoreDocs.length; i++) {
-              try {
-                int doc = wrappedScoreDocs[i].doc;
-                float score = exactScorer.score(doc);
-                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-              } catch (Exception e) {
-                throw new RuntimeException(e);
-              }
-            }
-
-            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-            return new TopDocs(totalHits, scoreDocs);
-          }
-        };
       }
 
       VamanaGraphSearcher.search(
@@ -486,6 +427,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           // FIXME: support filtered
           //          vectorValues.getAcceptOrds(acceptDocs));
           acceptDocs);
+
+      collector.rerank(
+          RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target));
     }
   }
 
@@ -681,7 +625,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /** Read the nearest-neighbors graph from the index input */
+  /**
+   * Read the nearest-neighbors graph from the index input
+   */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;

@@ -17,6 +17,9 @@
 
 package org.apache.lucene.search;
 
+import java.util.function.Function;
+import org.apache.lucene.util.vamana.RandomVectorScorer;
+
 /**
  * KnnCollector is a knn collector used for gathering kNN results and providing topDocs from the
  * gathered neighbors
@@ -85,4 +88,6 @@ public interface KnnCollector {
    * @return The collected top documents
    */
   TopDocs topDocs();
+
+  default void rerank(RandomVectorScorer scorer) {}
 }
