@@ -634,7 +634,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           codebooks[i] = new Codebook(centroids);
         }
 
-        pq = ProductQuantization.fromCodebooks(codebooks, dimension, pqFactor, similarityFunction);
+        int M = dimension / pqFactor;
+        pq = ProductQuantization.fromCodebooks(codebooks, dimension, M, similarityFunction);
       } else {
         pq = null;
       }

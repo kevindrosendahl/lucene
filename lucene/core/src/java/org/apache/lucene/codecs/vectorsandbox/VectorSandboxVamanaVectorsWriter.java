@@ -1232,7 +1232,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
       docsWithField.add(docID);
       vectors.add(copy);
-//      vamanaGraphBuilder.addGraphNode(node);
+      vamanaGraphBuilder.addGraphNode(node);
       node++;
       lastDocID = docID;
     }
