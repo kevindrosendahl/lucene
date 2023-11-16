@@ -33,11 +33,13 @@ public class TestPQParity {
 
   @Test
   public void testPQParity() throws Exception {
-    var ravv = new ListRandomAccessVectorValues<>(Arrays.stream(VECTORS).toList(), VECTOR_DIMENSIONS);
+    var ravv =
+        new ListRandomAccessVectorValues<>(Arrays.stream(VECTORS).toList(), VECTOR_DIMENSIONS);
     var pq = ProductQuantization.compute(ravv, 25);
     System.out.println("pq = " + pq);
 
-//    System.out.println("pq.codebooks[24]. = " + Arrays.deepToString(pq.codebooks()[24].centroids));
+    //    System.out.println("pq.codebooks[24]. = " +
+    // Arrays.deepToString(pq.codebooks()[24].centroids));
 
     var encoded = pq.encode(VECTORS[13]);
     System.out.println("encoded = " + encoded);

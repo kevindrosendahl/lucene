@@ -19,20 +19,19 @@ package org.apache.lucene.util.clustering;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.function.BiFunction;
-import org.apache.lucene.index.VectorSimilarityFunction;
 
 /** KMeansPlusPlusClusterer */
 public class KMeansPlusPlusClusterer implements Clusterer {
 
   private final BiFunction<float[], float[], Float> distanceFunction;
-//  private final VectorSimilarityFunction similarityFunction;
+  //  private final VectorSimilarityFunction similarityFunction;
   private final int maxIterations;
   private final Random random;
 
   public KMeansPlusPlusClusterer(
       BiFunction<float[], float[], Float> distanceFunction, int maxIterations) {
     this.distanceFunction = distanceFunction;
-//    this.similarityFunction = similarityFunction;
+    //    this.similarityFunction = similarityFunction;
     this.maxIterations = maxIterations;
     this.random = new Random(0);
   }
@@ -50,8 +49,9 @@ public class KMeansPlusPlusClusterer implements Clusterer {
   private static class ClusterRun {
 
     private final int k;
-//    private final VectorSimilarityFunction similarityFunction;
-    private final BiFunction<float[], float[], Float> distanceFunction;;
+    //    private final VectorSimilarityFunction similarityFunction;
+    private final BiFunction<float[], float[], Float> distanceFunction;
+    ;
     private final Random random;
     private final float[][] points;
     private int[] assignments;
@@ -60,11 +60,14 @@ public class KMeansPlusPlusClusterer implements Clusterer {
     private float[][] centroids;
 
     private ClusterRun(
-        float[][] points, int k, BiFunction<float[], float[], Float> distanceFunction, Random random) {
+        float[][] points,
+        int k,
+        BiFunction<float[], float[], Float> distanceFunction,
+        Random random) {
       this.points = points;
       this.k = k;
       this.distanceFunction = distanceFunction;
-//      this.similarityFunction = similarityFunction;
+      //      this.similarityFunction = similarityFunction;
       this.random = random;
       this.assignments = new int[points.length];
       this.clusterSizes = new int[k];
@@ -205,7 +208,7 @@ public class KMeansPlusPlusClusterer implements Clusterer {
     }
 
     private float distance(float[] v1, float[] v2) {
-//      return 1 - similarityFunction.compare(v1, v2);
+      //      return 1 - similarityFunction.compare(v1, v2);
       return this.distanceFunction.apply(v1, v2);
     }
   }

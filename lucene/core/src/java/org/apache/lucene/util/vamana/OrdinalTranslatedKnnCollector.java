@@ -17,6 +17,7 @@
 
 package org.apache.lucene.util.vamana;
 
+import java.util.function.Function;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -82,7 +83,7 @@ public final class OrdinalTranslatedKnnCollector implements KnnCollector {
   }
 
   @Override
-  public void rerank(RandomVectorScorer scorer) {
-    in.rerank(scorer);
+  public void rerank(Function<TopDocs, TopDocs> reranker) {
+    in.rerank(reranker);
   }
 }

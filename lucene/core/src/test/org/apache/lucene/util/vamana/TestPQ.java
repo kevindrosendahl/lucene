@@ -8,24 +8,20 @@ import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SerialMergeScheduler;
-import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestPQ extends LuceneTestCase {
@@ -61,7 +57,8 @@ public class TestPQ extends LuceneTestCase {
             return new VectorSandboxVamanaVectorsFormat(
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
-                VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA, 2);
+                VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
+                2);
           }
         };
 
@@ -75,19 +72,19 @@ public class TestPQ extends LuceneTestCase {
                 .setMergeScheduler(new SerialMergeScheduler())
                 .setMergePolicy(NoMergePolicy.INSTANCE);
         try (var writer = new IndexWriter(hnswDirectory, config)) {
-//          int i = 0;
+          //          int i = 0;
           for (var vector : VECTORS) {
             var doc = new Document();
             doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
             writer.addDocument(doc);
 
-//            if (i++ % 1000 == 0) {
-//              writer.flush();
-//            }
+            //            if (i++ % 1000 == 0) {
+            //              writer.flush();
+            //            }
           }
 
-//          writer.getConfig().setMergePolicy(new TieredMergePolicy());
-//          writer.forceMerge(1);
+          //          writer.getConfig().setMergePolicy(new TieredMergePolicy());
+          //          writer.forceMerge(1);
         }
 
         var ingestConfig =
@@ -98,20 +95,20 @@ public class TestPQ extends LuceneTestCase {
                 .setMergeScheduler(new SerialMergeScheduler())
                 .setMergePolicy(NoMergePolicy.INSTANCE);
         try (var writer = new IndexWriter(vamanaDirectory, ingestConfig)) {
-//          int i = 0;
+          //          int i = 0;
           for (var vector : VECTORS) {
             var doc = new Document();
             doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
-//            doc.add(new StoredField("id", i++));
+            //            doc.add(new StoredField("id", i++));
             writer.addDocument(doc);
 
-//            if (i % 1000 == 0) {
-//              writer.flush();
-//            }
+            //            if (i % 1000 == 0) {
+            //              writer.flush();
+            //            }
           }
 
-//          writer.getConfig().setMergePolicy(new TieredMergePolicy());
-//          writer.forceMerge(1);
+          //          writer.getConfig().setMergePolicy(new TieredMergePolicy());
+          //          writer.forceMerge(1);
         }
 
         var hnswReader = DirectoryReader.open(hnswDirectory);
@@ -145,17 +142,17 @@ public class TestPQ extends LuceneTestCase {
         var hnswResults = hnswSearcher.search(query, 10).scoreDocs;
         var vamanaResults = vamanaSearcher.search(query, 10).scoreDocs;
 
-//        var ingestDocs = new int[vamanaResults.length];
-//        for (int i = 0; i < ingestDocs.length; i++) {
-//          int id =
-//              vamanaSearcher
-//                  .storedFields()
-//                  .document(vamanaResults[i].doc)
-//                  .getField("id")
-//                  .numericValue()
-//                  .intValue();
-//          ingestDocs[i] = id;
-//        }
+        //        var ingestDocs = new int[vamanaResults.length];
+        //        for (int i = 0; i < ingestDocs.length; i++) {
+        //          int id =
+        //              vamanaSearcher
+        //                  .storedFields()
+        //                  .document(vamanaResults[i].doc)
+        //                  .getField("id")
+        //                  .numericValue()
+        //                  .intValue();
+        //          ingestDocs[i] = id;
+        //        }
 
         System.out.println("hnswResults = " + hnswResults);
         System.out.println("vamanaResults = " + vamanaResults);
@@ -165,7 +162,7 @@ public class TestPQ extends LuceneTestCase {
           try {
             int doc = vamanaResults[i].doc;
             float score = VectorSimilarityFunction.COSINE.compare(VECTORS.get(0), VECTORS.get(doc));
-//            float score = exactScorer.score(doc);
+            //            float score = exactScorer.score(doc);
             rerankedResults[i] = new ScoreDoc(doc, score, vamanaResults[i].shardIndex);
           } catch (Exception e) {
             throw new RuntimeException(e);

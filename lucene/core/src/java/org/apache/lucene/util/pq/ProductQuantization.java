@@ -34,21 +34,16 @@ import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 public class ProductQuantization {
 
   private static final Random RANDOM = new Random(0);
-  private static final ForkJoinPool FORK_JOIN_POOL =
-      new ForkJoinPool(1);
+  private static final ForkJoinPool FORK_JOIN_POOL = new ForkJoinPool(1);
 
   // TODO: consider normalizing around the global centroid for euclidean
-  public static ProductQuantization compute(
-      RandomAccessVectorValues<float[]> ravv, int M)
+  public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M)
       throws IOException {
     return compute(ravv, M, RANDOM);
   }
 
   public static ProductQuantization compute(
-      RandomAccessVectorValues<float[]> ravv,
-      int M,
-      Random random)
-      throws IOException {
+      RandomAccessVectorValues<float[]> ravv, int M, Random random) throws IOException {
     var trainingVectors = sampleTrainingVectors(ravv, MAX_PQ_TRAINING_SET_SIZE, random);
     var subvectorInfos = getSubvectorInfo(ravv.dimension(), M);
     var codebooks = createCodebooks(trainingVectors, M, subvectorInfos, random);
@@ -72,7 +67,6 @@ public class ProductQuantization {
   private final int decodedDimensionSize;
 
   private record SubvectorInfo(int size, int offset) {}
-
 
   public static class Codebook {
 
@@ -104,9 +98,7 @@ public class ProductQuantization {
     return vectors;
   }
 
-  private ProductQuantization(
-      Codebook[] codebooks,
-      SubvectorInfo[] subvectorInfos) {
+  private ProductQuantization(Codebook[] codebooks, SubvectorInfo[] subvectorInfos) {
     this.codebooks = codebooks;
     this.M = codebooks.length;
     this.subvectorInfos = subvectorInfos;
@@ -146,8 +138,7 @@ public class ProductQuantization {
     return subvector;
   }
 
-  private static int closestCentroidIndex(
-      float[] subvector, Codebook codebook) {
+  private static int closestCentroidIndex(float[] subvector, Codebook codebook) {
     int closestIndex = 0;
     float closestDistance = Float.MAX_VALUE;
 
@@ -163,10 +154,7 @@ public class ProductQuantization {
   }
 
   private static Codebook[] createCodebooks(
-      List<float[]> vectors,
-      int M,
-      SubvectorInfo[] subvectorInfos,
-      Random random) {
+      List<float[]> vectors, int M, SubvectorInfo[] subvectorInfos, Random random) {
     return FORK_JOIN_POOL
         .submit(
             () ->
@@ -179,9 +167,7 @@ public class ProductQuantization {
   }
 
   private static float[][] clusterSubvectors(
-      List<float[]> vectors,
-      int m,
-      SubvectorInfo[] subvectorInfos) {
+      List<float[]> vectors, int m, SubvectorInfo[] subvectorInfos) {
     float[][] subvectors =
         vectors.stream().map(v -> getSubVector(v, m, subvectorInfos)).toArray(float[][]::new);
     var clusterer = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, K_MEANS_ITERATIONS);
@@ -218,8 +204,7 @@ public class ProductQuantization {
     return subvectorInfos;
   }
 
-  private static float distance(
-      float[] v1, float[] v2) {
+  private static float distance(float[] v1, float[] v2) {
     return VectorUtil.squareDistance(v1, v2);
   }
 }

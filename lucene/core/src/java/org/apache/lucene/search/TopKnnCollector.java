@@ -17,10 +17,8 @@
 
 package org.apache.lucene.search;
 
-import java.util.Arrays;
-import java.util.Comparator;
+import java.util.function.Function;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.apache.lucene.util.vamana.RandomVectorScorer;
 
 /**
  * TopKnnCollector is a specific KnnCollector. A minHeap is used to keep track of the currently
@@ -59,25 +57,12 @@ public final class TopKnnCollector extends AbstractKnnCollector {
   }
 
   @Override
-  public void rerank(RandomVectorScorer scorer) {
+  public void rerank(Function<TopDocs, TopDocs> reranker) {
     getTopDocs();
-    var totalHits = topDocs.totalHits;
-    var wrappedScoreDocs = topDocs.scoreDocs;
+    var newTopDocs = reranker.apply(topDocs);
 
-    ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-    for (int i = 0; i < scoreDocs.length; i++) {
-      try {
-        int doc = wrappedScoreDocs[i].doc;
-        float score = scorer.score(doc);
-        scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
     synchronized (this) {
-      this.topDocs = new TopDocs(totalHits, scoreDocs);
+      this.topDocs = newTopDocs;
     }
   }
 

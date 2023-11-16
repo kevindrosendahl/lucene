@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxFastIngestVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
 import org.apache.lucene.document.Document;
@@ -22,7 +21,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFastIngest extends LuceneTestCase {
@@ -61,7 +59,8 @@ public class TestFastIngest extends LuceneTestCase {
                 return new VectorSandboxVamanaVectorsFormat(64, 100, 1.2f, 0, null);
               }
             };
-          };
+          }
+          ;
         };
 
     try (var directory = new ByteBuffersDirectory()) {

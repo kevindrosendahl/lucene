@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.VamanaGraphProvider;
@@ -221,34 +220,34 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-//  private void readPqVectors(SegmentReadState state, int versionMeta) throws IOException {
-//    try (var pqData =
-//        openDataInput(
-//            state,
-//            versionMeta,
-//            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
-//            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME)) {
-//      for (var entry : fields.entrySet()) {
-//        var field = entry.getKey();
-//        var fieldEntry = entry.getValue();
-//
-//        if (fieldEntry.pq == null) {
-//          continue;
-//        }
-//
-//        int M = fieldEntry.pq.M();
-//        pqData.seek(fieldEntry.pqDataOffset);
-//
-//        byte[][] encoded = new byte[fieldEntry.size][];
-//        for (int i = 0; i < encoded.length; i++) {
-//          encoded[i] = new byte[M];
-//          pqData.readBytes(encoded[i], 0, M);
-//        }
-//
-//        pqVectors.put(field, encoded);
-//      }
-//    }
-//  }
+  //  private void readPqVectors(SegmentReadState state, int versionMeta) throws IOException {
+  //    try (var pqData =
+  //        openDataInput(
+  //            state,
+  //            versionMeta,
+  //            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
+  //            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME)) {
+  //      for (var entry : fields.entrySet()) {
+  //        var field = entry.getKey();
+  //        var fieldEntry = entry.getValue();
+  //
+  //        if (fieldEntry.pq == null) {
+  //          continue;
+  //        }
+  //
+  //        int M = fieldEntry.pq.M();
+  //        pqData.seek(fieldEntry.pqDataOffset);
+  //
+  //        byte[][] encoded = new byte[fieldEntry.size][];
+  //        for (int i = 0; i < encoded.length; i++) {
+  //          encoded[i] = new byte[M];
+  //          pqData.readBytes(encoded[i], 0, M);
+  //        }
+  //
+  //        pqVectors.put(field, encoded);
+  //      }
+  //    }
+  //  }
 
   private void validateFieldEntry(FieldInfo info, FieldEntry fieldEntry) {
     int dimension = info.getVectorDimension();
@@ -316,7 +315,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -409,8 +408,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
 
-      KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector,
-          vectorValues::ordToDoc);
+      KnnCollector collector =
+          new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
         scorer =
@@ -429,7 +428,27 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs);
 
       collector.rerank(
-          RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target));
+          topDocs -> {
+            var exactScorer =
+                RandomVectorScorer.createFloats(
+                    vectorValues, fieldEntry.similarityFunction, target);
+            var totalHits = topDocs.totalHits;
+            var wrappedScoreDocs = topDocs.scoreDocs;
+
+            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+            for (int i = 0; i < scoreDocs.length; i++) {
+              try {
+                int doc = wrappedScoreDocs[i].doc;
+                float score = exactScorer.score(doc);
+                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            }
+
+            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+            return new TopDocs(totalHits, scoreDocs);
+          });
     }
   }
 
@@ -625,9 +644,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /**
-   * Read the nearest-neighbors graph from the index input
-   */
+  /** Read the nearest-neighbors graph from the index input */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
