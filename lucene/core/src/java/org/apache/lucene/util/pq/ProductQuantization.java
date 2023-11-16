@@ -171,7 +171,7 @@ public class ProductQuantization {
         .submit(
             () ->
                 IntStream.range(0, M)
-                    .sequential()
+                    .parallel()
                     .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))
