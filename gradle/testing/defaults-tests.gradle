@@ -129,6 +129,7 @@ allprojects {
       jvmArgs '--add-modules', 'jdk.unsupported,jdk.management'
 
       // Enable the vector incubator module on supported Java versions:
+      logger.info("current java version: " + rootProject.runtimeJavaVersion)
       if (rootProject.vectorIncubatorJavaVersions.contains(rootProject.runtimeJavaVersion)) {
         jvmArgs '--add-modules', 'jdk.incubator.vector'
       }

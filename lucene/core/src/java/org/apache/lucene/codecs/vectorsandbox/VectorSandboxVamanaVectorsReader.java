@@ -50,6 +50,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.ScalarQuantizer;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.pq.PQVectorScorer;
 import org.apache.lucene.util.pq.ProductQuantization;
 import org.apache.lucene.util.pq.ProductQuantization.Codebook;
 import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
@@ -412,11 +413,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
-        scorer =
-            node -> {
-              float[] decoded = fieldEntry.pq.decode(encoded[node]);
-              return fieldEntry.similarityFunction.compare(target, decoded);
-            };
+//        scorer =
+//            node -> {
+//              float[] decoded = fieldEntry.pq.decode(encoded[node]);
+//              return fieldEntry.similarityFunction.compare(target, decoded);
+//            };
+        scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
       }
 
       VamanaGraphSearcher.search(

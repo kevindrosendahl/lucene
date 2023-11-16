@@ -163,7 +163,9 @@ public class ProductQuantization {
         .submit(
             () ->
                 IntStream.range(0, M)
-                    .parallel()
+                    // FIXME: back to parallel
+//                    .parallel()
+                    .sequential()
                     .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))

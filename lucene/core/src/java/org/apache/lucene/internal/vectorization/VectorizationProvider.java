@@ -123,17 +123,17 @@ public abstract class VectorizationProvider {
       }
       vectorMod.ifPresent(VectorizationProvider.class.getModule()::addReads);
       // check for testMode and otherwise fallback to default if slowness could happen
-      if (!testMode) {
-        if (TESTS_VECTOR_SIZE.isPresent() || TESTS_FORCE_INTEGER_VECTORS) {
-          LOG.warning(
-              "Vector bitsize and/or integer vectors enforcement; using default vectorization provider outside of testMode");
-          return new DefaultVectorizationProvider();
-        }
-        if (isClientVM()) {
-          LOG.warning("C2 compiler is disabled; Java vector incubator API can't be enabled");
-          return new DefaultVectorizationProvider();
-        }
-      }
+//      if (!testMode) {
+//        if (TESTS_VECTOR_SIZE.isPresent() || TESTS_FORCE_INTEGER_VECTORS) {
+//          LOG.warning(
+//              "Vector bitsize and/or integer vectors enforcement; using default vectorization provider outside of testMode");
+//          return new DefaultVectorizationProvider();
+//        }
+//        if (isClientVM()) {
+//          LOG.warning("C2 compiler is disabled; Java vector incubator API can't be enabled");
+//          return new DefaultVectorizationProvider();
+//        }
+//      }
       try {
         // we use method handles with lookup, so we do not need to deal with setAccessible as we
         // have private access through the lookup:
