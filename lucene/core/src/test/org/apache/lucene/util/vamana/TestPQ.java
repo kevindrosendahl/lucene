@@ -1,6 +1,8 @@
 package org.apache.lucene.util.vamana;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -20,6 +22,7 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Ignore;
@@ -154,8 +157,24 @@ public class TestPQ extends LuceneTestCase {
 //          ingestDocs[i] = id;
 //        }
 
-        System.out.println("results = " + hnswResults);
-        System.out.println("ingestResults = " + vamanaResults);
+        System.out.println("hnswResults = " + hnswResults);
+        System.out.println("vamanaResults = " + vamanaResults);
+
+        ScoreDoc[] rerankedResults = new ScoreDoc[vamanaResults.length];
+        for (int i = 0; i < rerankedResults.length; i++) {
+          try {
+            int doc = vamanaResults[i].doc;
+            float score = VectorSimilarityFunction.COSINE.compare(VECTORS.get(0), VECTORS.get(doc));
+//            float score = exactScorer.score(doc);
+            rerankedResults[i] = new ScoreDoc(doc, score, vamanaResults[i].shardIndex);
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        }
+
+        Arrays.sort(rerankedResults, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+
+        System.out.println("rerankedResults = " + rerankedResults);
       }
     }
   }

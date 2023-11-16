@@ -411,13 +411,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       KnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
-        byte[] encodedQuery = fieldEntry.pq.encode(target);
         byte[][] encoded = pqVectors.get(field);
         RandomVectorScorer exactScorer = scorer;
         scorer =
             node -> {
-              byte[] encodedNode = encoded[node];
-              return fieldEntry.similarityFunction.compare(encodedQuery, encodedNode);
+              float[] decoded = fieldEntry.pq.decode(encoded[node]);
+              return fieldEntry.similarityFunction.compare(target, decoded);
             };
 
         KnnCollector wrapped = collector;

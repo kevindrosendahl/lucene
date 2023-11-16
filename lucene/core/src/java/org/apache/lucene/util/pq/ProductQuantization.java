@@ -76,7 +76,7 @@ public class ProductQuantization {
 
   public static class Codebook {
 
-    private float[][] centroids;
+    public float[][] centroids;
 
     public Codebook(float[][] centroids) {
       this.centroids = centroids;
@@ -171,7 +171,7 @@ public class ProductQuantization {
         .submit(
             () ->
                 IntStream.range(0, M)
-                    .parallel()
+                    .sequential()
                     .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))
@@ -185,6 +185,10 @@ public class ProductQuantization {
     float[][] subvectors =
         vectors.stream().map(v -> getSubVector(v, m, subvectorInfos)).toArray(float[][]::new);
     var clusterer = new KMeansPlusPlusClusterer(VectorUtil::squareDistance, K_MEANS_ITERATIONS);
+    if (m == 24) {
+      System.out.println("here");
+      System.out.println("subvectors = " + Arrays.deepToString(subvectors));
+    }
     return clusterer.cluster(subvectors, CLUSTERS);
   }
 
