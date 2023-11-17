@@ -7,7 +7,6 @@ import org.apache.lucene.util.vamana.RandomVectorScorer;
 
 public class PQVectorScorer implements RandomVectorScorer {
 
-  private final ProductQuantization pq;
   private final VectorSimilarityFunction similarityFunction;
   private final byte[][] encoded;
   private final float[] partialSums;
@@ -16,7 +15,6 @@ public class PQVectorScorer implements RandomVectorScorer {
 
   public PQVectorScorer(ProductQuantization pq, VectorSimilarityFunction similarityFunction,
       byte[][] encoded, float[] query) {
-    this.pq = pq;
     this.similarityFunction = similarityFunction;
     this.encoded = encoded;
 

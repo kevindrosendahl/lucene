@@ -702,7 +702,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
             new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
                 fieldInfo.getVectorDimension(),
                 docsWithField.cardinality(),
-                vectorDataInput,
+                vectorDataInput.clone(),
                 byteSize);
 
         int pqDims = fieldInfo.getVectorDimension() / pqFactor;

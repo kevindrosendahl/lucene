@@ -89,7 +89,12 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
 
   @Override
   public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
-    throw new UnsupportedOperationException("not implemented for scalar");
+    float sum = 0f;
+    for (int i = 0; i < length; i++) {
+      sum += a[aOffset + i] * b[bOffset + i];
+    }
+
+    return sum;
   }
 
   @Override
@@ -126,7 +131,13 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
 
   @Override
   public float squareDistance(float[] a, int aOffset, float[] b, int bOffset, int length) {
-    throw new UnsupportedOperationException("not implemented for scalar");
+    float squareSum = 0f;
+    for (int i = 0; i < length; i++) {
+      float diff = a[aOffset + i] - b[bOffset + i];
+      squareSum += diff * diff;
+    }
+
+    return squareSum;
   }
 
   private static float squareDistanceUnrolled(float[] v1, float[] v2, int index) {
@@ -183,10 +194,5 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
       squareSum += diff * diff;
     }
     return squareSum;
-  }
-
-  @Override
-  public float assembleAndSum(float[] data, int dataBase, byte[] dataOffsets) {
-    throw new UnsupportedOperationException("not implemented for scalar");
   }
 }
