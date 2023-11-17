@@ -97,7 +97,10 @@ public class ProductQuantization {
     var vectors = new ArrayList<float[]>();
     for (int i = 0; i < ravv.size(); i++) {
       if (random.nextFloat() < sampleRate) {
-        vectors.add(ravv.vectorValue(i));
+        float[] copy = new float[ravv.dimension()];
+        float[] vector = ravv.vectorValue(i);
+        System.arraycopy(vector, 0, copy, 0, vector.length);
+        vectors.add(copy);
       }
     }
     return vectors;
