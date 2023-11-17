@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
@@ -35,14 +36,14 @@ import org.apache.lucene.util.vamana.RandomAccessVectorValues;
  */
 public class ProductQuantization {
 
-  private static final Random RANDOM = new Random(0);
+  //  private static final Random RANDOM = new Random(0);
   private static final ForkJoinPool FORK_JOIN_POOL = new ForkJoinPool(Runtime.getRuntime()
       .availableProcessors());
 
   // TODO: consider normalizing around the global centroid for euclidean
   public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M)
       throws IOException {
-    return compute(ravv, M, RANDOM);
+    return compute(ravv, M, new Random(0));
   }
 
   public static ProductQuantization compute(
@@ -87,6 +88,11 @@ public class ProductQuantization {
 
     public int size() {
       return centroids.length;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(Arrays.deepHashCode(centroids));
     }
   }
 
@@ -171,7 +177,9 @@ public class ProductQuantization {
         .submit(
             () ->
                 IntStream.range(0, M)
-                    .parallel()
+                    // FIXME: back to parallel
+//                    .parallel()
+                    .sequential()
                     .mapToObj(m -> clusterSubvectors(vectors, m, subvectorInfos))
                     .map(Codebook::new)
                     .toArray(Codebook[]::new))
@@ -218,5 +226,11 @@ public class ProductQuantization {
 
   private static float distance(float[] v1, float[] v2) {
     return VectorUtil.squareDistance(v1, v2);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(codebooks), M, Arrays.hashCode(subvectorInfos),
+        decodedDimensionSize);
   }
 }
