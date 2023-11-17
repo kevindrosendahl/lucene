@@ -213,7 +213,8 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
             alpha,
             pqFactor,
             segmentWriteState.infoStream,
-            quantizedVectorFieldWriter);
+            quantizedVectorFieldWriter,
+            numMergeWorkers > 1);
     fields.add(newField);
     return newField;
   }
@@ -273,18 +274,18 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   private void writeField(FieldWriter<?> fieldData, int maxDoc, long[] quantizedVecOffsetAndLen)
       throws IOException {
     long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-    if (fieldData.isQuantized()) {
-      // write vector values
-      switch (fieldData.fieldInfo.getVectorEncoding()) {
-        case BYTE -> writeByteVectors(fieldData);
-        case FLOAT32 -> writeFloat32Vectors(fieldData);
-      }
+//    if (fieldData.isQuantized() || this.numMergeWorkers > 1) {
+    // write vector values
+    switch (fieldData.fieldInfo.getVectorEncoding()) {
+      case BYTE -> writeByteVectors(fieldData);
+      case FLOAT32 -> writeFloat32Vectors(fieldData);
     }
+//    }
     long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
     ProductQuantization pq = null;
     long pqDataOffset = pqData.getFilePointer();
-    if (pqFactor > 0) {
+    if (pqFactor > 0 && numMergeWorkers <= 1) {
       RandomAccessVectorValues<float[]> vectors =
           new RAVectorValues<>((List<float[]>) fieldData.vectors, fieldData.dim);
       int pqDims = fieldData.dim / pqFactor;
@@ -295,8 +296,12 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
     // write graph
     long vectorIndexOffset = vectorIndex.getFilePointer();
-    OnHeapVamanaGraph graph = fieldData.getGraph();
-    int[] nodeOffsets = writeGraph(fieldData);
+    OnHeapVamanaGraph graph = null;
+    int[] nodeOffsets = null;
+    if (numMergeWorkers <= 1) {
+      graph = fieldData.getGraph();
+      nodeOffsets = writeGraph(fieldData);
+    }
     long vectorIndexLength = vectorIndex.getFilePointer() - vectorIndexOffset;
 
     writeMeta(
@@ -698,7 +703,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long pqDataOffset = pqData.getFilePointer();
       ProductQuantization pq = null;
       if (pqFactor > 0) {
-         RandomAccessVectorValues<float[]> vectorValues =
+        RandomAccessVectorValues<float[]> vectorValues =
             new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
                 fieldInfo.getVectorDimension(),
                 docsWithField.cardinality(),
@@ -1010,6 +1015,8 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     meta.writeInt(field.getVectorEncoding().ordinal());
     meta.writeInt(field.getVectorSimilarityFunction().ordinal());
     meta.writeByte(isQuantized ? (byte) 1 : (byte) 0);
+    boolean hasGraph = graph != null;
+    meta.writeVInt(hasGraph ? 1 : 0);
     if (isQuantized) {
       assert lowerQuantile != null
           && upperQuantile != null
@@ -1147,6 +1154,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
 
     private int lastDocID = -1;
     private int node = 0;
+    private boolean merging;
 
     static FieldWriter<?> create(
         FieldInfo fieldInfo,
@@ -1155,19 +1163,20 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         float alpha,
         int pqFactor,
         InfoStream infoStream,
-        VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter writer)
+        VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter writer,
+        boolean merging)
         throws IOException {
       int dim = fieldInfo.getVectorDimension();
       return switch (fieldInfo.getVectorEncoding()) {
         case BYTE -> new FieldWriter<byte[]>(
-            fieldInfo, M, beamWidth, alpha, pqFactor, infoStream, writer) {
+            fieldInfo, M, beamWidth, alpha, pqFactor, infoStream, writer, merging) {
           @Override
           public byte[] copyValue(byte[] value) {
             return ArrayUtil.copyOfSubArray(value, 0, dim);
           }
         };
         case FLOAT32 -> new FieldWriter<float[]>(
-            fieldInfo, M, beamWidth, alpha, pqFactor, infoStream, writer) {
+            fieldInfo, M, beamWidth, alpha, pqFactor, infoStream, writer, merging) {
           @Override
           public float[] copyValue(float[] value) {
             return ArrayUtil.copyOfSubArray(value, 0, dim);
@@ -1184,13 +1193,15 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         float alpha,
         int pqFactor,
         InfoStream infoStream,
-        VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter quantizedWriter)
+        VectorSandboxScalarQuantizedVectorsWriter.QuantizationFieldVectorWriter quantizedWriter,
+        boolean merging)
         throws IOException {
       this.fieldInfo = fieldInfo;
       this.dim = fieldInfo.getVectorDimension();
       this.docsWithField = new DocsWithFieldSet();
       this.quantizedWriter = quantizedWriter;
       this.pqFactor = pqFactor;
+      this.merging = merging;
       vectors = new ArrayList<>();
       if (quantizedWriter != null
           && fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
@@ -1230,7 +1241,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
       docsWithField.add(docID);
       vectors.add(copy);
-      vamanaGraphBuilder.addGraphNode(node);
+      if (!merging) {
+        vamanaGraphBuilder.addGraphNode(node);
+      }
       node++;
       lastDocID = docID;
     }

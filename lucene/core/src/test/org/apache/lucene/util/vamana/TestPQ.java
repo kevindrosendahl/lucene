@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
@@ -203,7 +204,7 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2);
+                2, null, 2, Executors.newCachedThreadPool());
           }
         };
 
@@ -290,15 +291,15 @@ public class TestPQ extends LuceneTestCase {
         var mergeLookupResults = new ScoreDoc[mergeResults.length];
         for (int i = 0; i < mergeLookupResults.length; i++) {
           int id =
-             mergeSearcher
+              mergeSearcher
                   .storedFields()
                   .document(mergeResults[i].doc)
                   .getField("id")
                   .numericValue()
                   .intValue();
-          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score, mergeResults[i].shardIndex);
+          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score,
+              mergeResults[i].shardIndex);
         }
-
 
         System.out.println("noMergeResults = " + Arrays.toString(noMergeResults));
         System.out.println("mergeResults = " + Arrays.toString(mergeResults));

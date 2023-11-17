@@ -341,9 +341,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + VectorEncoding.FLOAT32);
     }
 
-    if (!fieldEntry.isQuantized) {
-      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
-    }
+//    if (!fieldEntry.isQuantized) {
+//      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
+//    }
 
     return OffHeapFloatVectorValues.load(
         fieldEntry.ordToDoc,
@@ -367,9 +367,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + VectorEncoding.FLOAT32);
     }
 
-    if (!fieldEntry.isQuantized) {
-      return InGraphOffHeapByteVectorValues.load(fieldEntry, vectorIndex);
-    }
+//    if (!fieldEntry.isQuantized) {
+//      return InGraphOffHeapByteVectorValues.load(fieldEntry, vectorIndex);
+//    }
 
     return OffHeapByteVectorValues.load(
         fieldEntry.ordToDoc,
@@ -559,6 +559,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       this.similarityFunction = similarityFunction;
       this.vectorEncoding = vectorEncoding;
       this.isQuantized = meta.readByte() == 1;
+      boolean hasGraph = meta.readVInt() == 1;
       // Has int8 quantization
       if (isQuantized) {
         configuredQuantile = Float.intBitsToFloat(meta.readInt());
@@ -584,7 +585,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       pqDataOffset = meta.readLong();
       pqDataLength = meta.readLong();
       pqFactor = meta.readVInt();
-      if (pqFactor > 0) {
+      if (pqFactor > 0 && hasGraph) {
         int numCodebooks = meta.readVInt();
         int codebookSize = meta.readVInt();
         int centroidDimensions = meta.readVInt();
@@ -616,13 +617,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       // read node offsets
       M = meta.readVInt();
-      if (size > 0) {
+      if (size > 0 && hasGraph) {
         entryNode = meta.readVInt();
         offsetsOffset = meta.readLong();
         offsetsBlockShift = meta.readVInt();
         offsetsMeta = DirectMonotonicReader.loadMeta(meta, size, offsetsBlockShift);
         offsetsLength = meta.readLong();
       } else {
+        if (!hasGraph) {
+          meta.readVInt();
+        }
         entryNode = -1;
         offsetsOffset = 0;
         offsetsBlockShift = 0;
