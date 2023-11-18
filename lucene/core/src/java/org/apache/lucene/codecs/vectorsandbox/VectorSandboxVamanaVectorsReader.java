@@ -522,7 +522,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                   } catch (Exception e) {
                     throw new RuntimeException(e);
                   }
-                })
+                }, PARALLEL_READ_EXECUTOR)
             ).toList();
 
             CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
