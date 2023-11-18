@@ -109,7 +109,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
 
-      if (pqRerank == PQRerank.PARALLEL) {
+      if (!fields.get("vector").inGraphVectors) {
         vectorIndex.mlock();
       }
 
