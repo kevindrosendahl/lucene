@@ -30,7 +30,6 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.util.Constants;
 
-
 /**
  * VectorUtil methods implemented with Panama incubating vector API.
  *
@@ -181,9 +180,8 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
   }
 
   @Override
-  public float dotProduct(float[] v1, int v1offset, float[] v2, int v2offset, final int length)
-  {
-    //Common case first
+  public float dotProduct(float[] v1, int v1offset, float[] v2, int v2offset, final int length) {
+    // Common case first
     if (length >= FloatVector.SPECIES_PREFERRED.length())
       return dotProductPreferred(v1, v1offset, v2, v2offset, length);
 
@@ -191,15 +189,12 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
       return dotProduct64(v1, v1offset, v2, v2offset, length);
     else if (length < FloatVector.SPECIES_256.length())
       return dotProduct128(v1, v1offset, v2, v2offset, length);
-    else
-      return dotProduct256(v1, v1offset, v2, v2offset, length);
-
+    else return dotProduct256(v1, v1offset, v2, v2offset, length);
   }
 
   float dotProduct64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_64.length())
-      return dot64(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_64.length()) return dot64(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_64.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_64);
@@ -215,16 +210,14 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
 
   float dotProduct128(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_128.length())
-      return dot128(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_128.length()) return dot128(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_128.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_128);
@@ -240,17 +233,14 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
 
-
   float dotProduct256(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
 
-    if (length == FloatVector.SPECIES_256.length())
-      return dot256(v1, v1offset, v2, v2offset);
+    if (length == FloatVector.SPECIES_256.length()) return dot256(v1, v1offset, v2, v2offset);
 
     final int vectorizedLength = FloatVector.SPECIES_256.loopBound(length);
     FloatVector sum = FloatVector.zero(FloatVector.SPECIES_256);
@@ -266,8 +256,7 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
@@ -291,8 +280,7 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     float res = sum.reduceLanes(ADD);
 
     // Process the tail
-    for (; i < length; ++i)
-      res += v1[v1offset + i] * v2[v2offset + i];
+    for (; i < length; ++i) res += v1[v1offset + i] * v2[v2offset + i];
 
     return res;
   }
@@ -320,7 +308,6 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     var b = FloatVector.fromArray(FloatVector.SPECIES_PREFERRED, v2, offset2);
     return a.mul(b).reduceLanes(ADD);
   }
-
 
   @Override
   public float cosine(float[] a, float[] b) {
@@ -459,9 +446,9 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
   }
 
   @Override
-  public float squareDistance(float[] v1, int v1offset, float[] v2, int v2offset, final int length)
-  {
-    //Common case first
+  public float squareDistance(
+      float[] v1, int v1offset, float[] v2, int v2offset, final int length) {
+    // Common case first
     if (length >= FloatVector.SPECIES_PREFERRED.length())
       return squareDistancePreferred(v1, v1offset, v2, v2offset, length);
 
@@ -469,11 +456,10 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
       return squareDistance64(v1, v1offset, v2, v2offset, length);
     else if (length < FloatVector.SPECIES_256.length())
       return squareDistance128(v1, v1offset, v2, v2offset, length);
-    else
-      return squareDistance256(v1, v1offset, v2, v2offset, length);
+    else return squareDistance256(v1, v1offset, v2, v2offset, length);
   }
 
-   float squareDistance64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
+  float squareDistance64(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
     if (length == FloatVector.SPECIES_64.length())
       return squareDistance64(v1, v1offset, v2, v2offset);
 
@@ -526,7 +512,6 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
 
     return res;
   }
-
 
   float squareDistance256(float[] v1, int v1offset, float[] v2, int v2offset, int length) {
     if (length == FloatVector.SPECIES_256.length())

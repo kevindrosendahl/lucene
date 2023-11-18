@@ -31,14 +31,12 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.clustering.KMeansPlusPlusClusterer;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 
-/**
- * ProductQuantization
- */
+/** ProductQuantization */
 public class ProductQuantization {
 
   //  private static final Random RANDOM = new Random(0);
-  private static final ForkJoinPool FORK_JOIN_POOL = new ForkJoinPool(Runtime.getRuntime()
-      .availableProcessors());
+  private static final ForkJoinPool FORK_JOIN_POOL =
+      new ForkJoinPool(Runtime.getRuntime().availableProcessors());
 
   // TODO: consider normalizing around the global centroid for euclidean
   public static ProductQuantization compute(RandomAccessVectorValues<float[]> ravv, int M)
@@ -70,9 +68,7 @@ public class ProductQuantization {
   private final SubvectorInfo[] subvectorInfos;
   private final int decodedDimensionSize;
 
-  public record SubvectorInfo(int size, int offset) {
-
-  }
+  public record SubvectorInfo(int size, int offset) {}
 
   public static class Codebook {
 
@@ -200,11 +196,11 @@ public class ProductQuantization {
    * <li>Size: The number of dimensions in the subvector.
    * <li>Offset: The starting dimension in the original vector for this subvector.
    *
-   * <p>When `M` is a factor of `dimensions`:
+   *     <p>When `M` is a factor of `dimensions`:
    * <li>Each subvector will have an equal size of `dimensions / M`.
    * <li>Offsets will be [0, size, 2*size, ..., (M-1)*size].
    *
-   * <p>When `M` is not a factor of `dimensions`:
+   *     <p>When `M` is not a factor of `dimensions`:
    * <li>The base size for each subvector is `dimensions /M`.
    * <li>A remainder of `dimensions % M` is distributed among the first few subvectors.
    * <li>Offsets will be calculated based on these sizes.
@@ -228,7 +224,7 @@ public class ProductQuantization {
 
   @Override
   public int hashCode() {
-    return Objects.hash(Arrays.hashCode(codebooks), M, Arrays.hashCode(subvectorInfos),
-        decodedDimensionSize);
+    return Objects.hash(
+        Arrays.hashCode(codebooks), M, Arrays.hashCode(subvectorInfos), decodedDimensionSize);
   }
 }

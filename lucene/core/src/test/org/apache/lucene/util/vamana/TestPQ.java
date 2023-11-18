@@ -12,6 +12,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat.PQRerank;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -67,7 +68,8 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
                 2,
-                false);
+                false,
+                PQRerank.SEQUENTIAL);
           }
         };
 
@@ -104,20 +106,20 @@ public class TestPQ extends LuceneTestCase {
                 .setMergeScheduler(new SerialMergeScheduler())
                 .setMergePolicy(NoMergePolicy.INSTANCE);
         try (var writer = new IndexWriter(vamanaDirectory, ingestConfig)) {
-//          int i = 0;
+          //          int i = 0;
           for (var vector : VECTORS) {
             var doc = new Document();
             doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
-//            doc.add(new StoredField("id", i++));
+            //            doc.add(new StoredField("id", i++));
             writer.addDocument(doc);
 
-//            if (i % (10000 / 2) == 0) {
-//              writer.flush();
-//            }
+            //            if (i % (10000 / 2) == 0) {
+            //              writer.flush();
+            //            }
           }
 
-//          writer.getConfig().setMergePolicy(new TieredMergePolicy());
-//          writer.forceMerge(1);
+          //          writer.getConfig().setMergePolicy(new TieredMergePolicy());
+          //          writer.forceMerge(1);
         }
 
         var hnswReader = DirectoryReader.open(hnswDirectory);
@@ -195,7 +197,9 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2, true);
+                2,
+                true,
+                PQRerank.SEQUENTIAL);
           }
         };
 
@@ -207,7 +211,12 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2, true, null, 2, Executors.newCachedThreadPool());
+                2,
+                true,
+                PQRerank.SEQUENTIAL,
+                null,
+                2,
+                Executors.newCachedThreadPool());
           }
         };
 
@@ -264,11 +273,10 @@ public class TestPQ extends LuceneTestCase {
         var noMergeSearcher = new IndexSearcher(noMergeReader);
         var noMergeleafReader = noMergeReader.leaves().get(0).reader();
         var noMergePerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
-                noMergeleafReader).getVectorReader();
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) noMergeleafReader).getVectorReader();
         var noMergeVectorReader =
-            (VectorSandboxVamanaVectorsReader)
-                noMergePerFieldVectorReader.getFieldReader("vector");
+            (VectorSandboxVamanaVectorsReader) noMergePerFieldVectorReader.getFieldReader("vector");
 
         var mergeReader = DirectoryReader.open(mergeDirectory);
         var mergeSearcher = new IndexSearcher(mergeReader);
@@ -277,8 +285,7 @@ public class TestPQ extends LuceneTestCase {
             (PerFieldKnnVectorsFormat.FieldsReader)
                 ((CodecReader) mergeLeafReader).getVectorReader();
         var mergeVectorReader =
-            (VectorSandboxVamanaVectorsReader)
-                mergePerFieldVectorReader.getFieldReader("vector");
+            (VectorSandboxVamanaVectorsReader) mergePerFieldVectorReader.getFieldReader("vector");
 
         //        var graph = vectorReader.getGraph("vector");
         //        var quantizedGraph = ingestVectorReader.getGraph("vector");
@@ -300,8 +307,8 @@ public class TestPQ extends LuceneTestCase {
                   .getField("id")
                   .numericValue()
                   .intValue();
-          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score,
-              mergeResults[i].shardIndex);
+          mergeLookupResults[i] =
+              new ScoreDoc(id, mergeResults[i].score, mergeResults[i].shardIndex);
         }
 
         System.out.println("noMergeResults = " + Arrays.toString(noMergeResults));
@@ -314,8 +321,8 @@ public class TestPQ extends LuceneTestCase {
         var encodedMergeZero = mergeVectorReader.pqVectors.get("vector")[123];
         var mergePq = mergeVectorReader.fields.get("vector").pq;
         var decodedMergeZero = mergePq.decode(encodedMergeZero);
-        var zeroOrd = mergeSearcher.storedFields().document(123).getField("id").numericValue()
-            .intValue();
+        var zeroOrd =
+            mergeSearcher.storedFields().document(123).getField("id").numericValue().intValue();
         System.out.println("decodedMergeZero = " + Arrays.toString(decodedMergeZero));
 
         var noMergeVectors = noMergeVectorReader.getFloatVectorValues("vector");
@@ -326,40 +333,44 @@ public class TestPQ extends LuceneTestCase {
         var decodedNoMergeZero = noMergePq.decode(encodedNoMerge);
         System.out.println("decodedNoMergeZero = " + Arrays.toString(decodedNoMergeZero));
 
-//        ScoreDoc[] rerankedResults = new ScoreDoc[mergeResults.length];
-//        for (int i = 0; i < rerankedResults.length; i++) {
-//          try {
-//            int doc = mergeResults[i].doc;
-//            float score = VectorSimilarityFunction.COSINE.compare(VECTORS.get(0), VECTORS.get(doc));
-//            //            float score = exactScorer.score(doc);
-//            rerankedResults[i] = new ScoreDoc(doc, score, mergeResults[i].shardIndex);
-//          } catch (Exception e) {
-//            throw new RuntimeException(e);
-//          }
-//        }
-//
-//        Arrays.sort(rerankedResults, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-//
-//        System.out.println("rerankedResults = " + Arrays.toString(rerankedResults));
+        //        ScoreDoc[] rerankedResults = new ScoreDoc[mergeResults.length];
+        //        for (int i = 0; i < rerankedResults.length; i++) {
+        //          try {
+        //            int doc = mergeResults[i].doc;
+        //            float score = VectorSimilarityFunction.COSINE.compare(VECTORS.get(0),
+        // VECTORS.get(doc));
+        //            //            float score = exactScorer.score(doc);
+        //            rerankedResults[i] = new ScoreDoc(doc, score, mergeResults[i].shardIndex);
+        //          } catch (Exception e) {
+        //            throw new RuntimeException(e);
+        //          }
+        //        }
+        //
+        //        Arrays.sort(rerankedResults, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+        //
+        //        System.out.println("rerankedResults = " + Arrays.toString(rerankedResults));
       }
     }
   }
 
   @Test
   public void compareGlove100() throws Exception {
-    try (var noMergeDirectory = new MMapDirectory(Path.of(
-        "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:1-forceMerge:false"))) {
-      try (var mergeDirectory = new MMapDirectory(Path.of(
-          "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:10-forceMerge:true"))) {
+    try (var noMergeDirectory =
+        new MMapDirectory(
+            Path.of(
+                "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:1-forceMerge:false"))) {
+      try (var mergeDirectory =
+          new MMapDirectory(
+              Path.of(
+                  "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:10-forceMerge:true"))) {
         var noMergeReader = DirectoryReader.open(noMergeDirectory);
         var noMergeSearcher = new IndexSearcher(noMergeReader);
         var noMergeleafReader = noMergeReader.leaves().get(0).reader();
         var noMergePerFieldVectorReader =
-            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
-                noMergeleafReader).getVectorReader();
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) noMergeleafReader).getVectorReader();
         var noMergeVectorReader =
-            (VectorSandboxVamanaVectorsReader)
-                noMergePerFieldVectorReader.getFieldReader("vector");
+            (VectorSandboxVamanaVectorsReader) noMergePerFieldVectorReader.getFieldReader("vector");
 
         var mergeReader = DirectoryReader.open(mergeDirectory);
         var mergeSearcher = new IndexSearcher(mergeReader);
@@ -368,29 +379,28 @@ public class TestPQ extends LuceneTestCase {
             (PerFieldKnnVectorsFormat.FieldsReader)
                 ((CodecReader) mergeLeafReader).getVectorReader();
         var mergeVectorReader =
-            (VectorSandboxVamanaVectorsReader)
-                mergePerFieldVectorReader.getFieldReader("vector");
+            (VectorSandboxVamanaVectorsReader) mergePerFieldVectorReader.getFieldReader("vector");
 
-//        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
-//        var noMergeResults = noMergeSearcher.search(query, 10).scoreDocs;
-//        var mergeResults = mergeSearcher.search(query, 10).scoreDocs;
-//
-//        var mergeLookupResults = new ScoreDoc[mergeResults.length];
-//        for (int i = 0; i < mergeLookupResults.length; i++) {
-//          int id =
-//              mergeSearcher
-//                  .storedFields()
-//                  .document(mergeResults[i].doc)
-//                  .getField("id")
-//                  .numericValue()
-//                  .intValue();
-//          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score,
-//              mergeResults[i].shardIndex);
-//        }
-//
-//        System.out.println("noMergeResults = " + Arrays.toString(noMergeResults));
-//        System.out.println("mergeResults = " + Arrays.toString(mergeResults));
-//        System.out.println("mergeLookupResults = " + Arrays.toString(mergeLookupResults));
+        //        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
+        //        var noMergeResults = noMergeSearcher.search(query, 10).scoreDocs;
+        //        var mergeResults = mergeSearcher.search(query, 10).scoreDocs;
+        //
+        //        var mergeLookupResults = new ScoreDoc[mergeResults.length];
+        //        for (int i = 0; i < mergeLookupResults.length; i++) {
+        //          int id =
+        //              mergeSearcher
+        //                  .storedFields()
+        //                  .document(mergeResults[i].doc)
+        //                  .getField("id")
+        //                  .numericValue()
+        //                  .intValue();
+        //          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score,
+        //              mergeResults[i].shardIndex);
+        //        }
+        //
+        //        System.out.println("noMergeResults = " + Arrays.toString(noMergeResults));
+        //        System.out.println("mergeResults = " + Arrays.toString(mergeResults));
+        //        System.out.println("mergeLookupResults = " + Arrays.toString(mergeLookupResults));
 
         var mergeVectors = mergeVectorReader.getFloatVectorValues("vector");
         mergeVectors.advance(123);
@@ -398,14 +408,14 @@ public class TestPQ extends LuceneTestCase {
         var encodedMergeZero = mergeVectorReader.pqVectors.get("vector")[123];
         var mergePq = mergeVectorReader.fields.get("vector").pq;
         var decodedMergeZero = mergePq.decode(encodedMergeZero);
-        var mergeId = mergeSearcher.storedFields().document(123).getField("id").numericValue()
-            .intValue();
+        var mergeId =
+            mergeSearcher.storedFields().document(123).getField("id").numericValue().intValue();
         System.out.println("decodedMergeZero = " + Arrays.toString(decodedMergeZero));
 
         int noMergeOrd = -1;
         for (int i = 0; i < 1183514; i++) {
-          int id = noMergeSearcher.storedFields().document(i).getField("id").numericValue()
-              .intValue();
+          int id =
+              noMergeSearcher.storedFields().document(i).getField("id").numericValue().intValue();
           if (id == mergeId) {
             noMergeOrd = i;
           }

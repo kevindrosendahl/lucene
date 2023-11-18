@@ -230,6 +230,7 @@ public class VamanaGraphSearcher {
 
       int topCandidateNode = candidates.pop();
       graphSeek(graph, topCandidateNode);
+      results.cacheNode(topCandidateNode);
       int friendOrd;
       while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;

@@ -132,9 +132,9 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     final String quantizedVectorDataFileName =
         quantizedVectorsFormat != null
             ? IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                VectorSandboxScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_DATA_EXTENSION)
             : null;
 
     String pqDataFileName =
@@ -277,13 +277,13 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   private void writeField(FieldWriter<?> fieldData, int maxDoc, long[] quantizedVecOffsetAndLen)
       throws IOException {
     long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-//    if (fieldData.isQuantized() || this.numMergeWorkers > 1) {
+    //    if (fieldData.isQuantized() || this.numMergeWorkers > 1) {
     // write vector values
     switch (fieldData.fieldInfo.getVectorEncoding()) {
       case BYTE -> writeByteVectors(fieldData);
       case FLOAT32 -> writeFloat32Vectors(fieldData);
     }
-//    }
+    //    }
     long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
     ProductQuantization pq = null;
@@ -475,7 +475,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
    *
    * <p>Additionally, the graph node connections are written to the vectorIndex.
    *
-   * @param graph       The current on heap graph
+   * @param graph The current on heap graph
    * @param newToOldMap the new node ids indexed to the old node ids
    * @param oldToNewMap the old node ids indexed to the new node ids
    * @param nodeOffsets where to place the new offsets for the nodes in the vector index.
@@ -808,8 +808,8 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         fieldData.isQuantized() ? fieldData.quantizedWriter.createQuantizer() : null;
     float[] normalizeCopy =
         fieldData.isQuantized()
-            && fieldData.fieldInfo.getVectorSimilarityFunction()
-            == VectorSimilarityFunction.COSINE
+                && fieldData.fieldInfo.getVectorSimilarityFunction()
+                    == VectorSimilarityFunction.COSINE
             ? new float[fieldData.dim]
             : null;
 
@@ -1273,10 +1273,10 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long quantizationSpace = quantizedWriter != null ? quantizedWriter.ramBytesUsed() : 0L;
       return docsWithField.ramBytesUsed()
           + (long) vectors.size()
-          * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
+              * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
           + (long) vectors.size()
-          * fieldInfo.getVectorDimension()
-          * fieldInfo.getVectorEncoding().byteSize
+              * fieldInfo.getVectorDimension()
+              * fieldInfo.getVectorEncoding().byteSize
           + vamanaGraphBuilder.getGraph().ramBytesUsed()
           + quantizationSpace;
     }
@@ -1328,7 +1328,6 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       return this;
     }
   }
-
 
   private interface CheckedRunnable {
 

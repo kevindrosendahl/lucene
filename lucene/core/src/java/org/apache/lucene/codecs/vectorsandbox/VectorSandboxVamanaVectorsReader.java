@@ -25,9 +25,11 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.VamanaGraphProvider;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat.PQRerank;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
@@ -76,10 +78,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
   private final IndexInput quantizedVectorData;
+  private final PQRerank pqRerank;
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
 
-  VectorSandboxVamanaVectorsReader(SegmentReadState state) throws IOException {
+  VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
+    this.pqRerank = pqRerank;
     int versionMeta = readMetadata(state);
     boolean success = false;
     try {
@@ -316,7 +320,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -341,9 +345,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + VectorEncoding.FLOAT32);
     }
 
-//    if (!fieldEntry.isQuantized) {
-//      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
-//    }
+    //    if (!fieldEntry.isQuantized) {
+    //      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
+    //    }
 
     return OffHeapFloatVectorValues.load(
         fieldEntry.ordToDoc,
@@ -367,9 +371,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + VectorEncoding.FLOAT32);
     }
 
-//    if (!fieldEntry.isQuantized) {
-//      return InGraphOffHeapByteVectorValues.load(fieldEntry, vectorIndex);
-//    }
+    //    if (!fieldEntry.isQuantized) {
+    //      return InGraphOffHeapByteVectorValues.load(fieldEntry, vectorIndex);
+    //    }
 
     return OffHeapByteVectorValues.load(
         fieldEntry.ordToDoc,
@@ -404,24 +408,83 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           //          vectorValues.getAcceptOrds(acceptDocs));
           acceptDocs);
     } else {
-      RandomAccessVectorValues<float[]> vectorValues = fieldEntry.inGraphVectors ?
-          InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex)
-          : OffHeapFloatVectorValues.load(
-              fieldEntry.ordToDoc,
-              fieldEntry.vectorEncoding,
-              fieldEntry.dimension,
-              fieldEntry.vectorDataOffset,
-              fieldEntry.vectorDataLength,
-              vectorData);
+      RandomAccessVectorValues<float[]> vectorValues =
+          fieldEntry.inGraphVectors
+              ? InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex)
+              : OffHeapFloatVectorValues.load(
+                  fieldEntry.ordToDoc,
+                  fieldEntry.vectorEncoding,
+                  fieldEntry.dimension,
+                  fieldEntry.vectorDataOffset,
+                  fieldEntry.vectorDataLength,
+                  vectorData);
 
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
 
       KnnCollector collector =
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
+      Map<Integer, float[]> cached = new HashMap<>();
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
         scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
+
+        if (pqRerank == PQRerank.CACHED) {
+          KnnCollector wrapped = collector;
+          collector = new KnnCollector() {
+            @Override
+            public boolean earlyTerminated() {
+              return wrapped.earlyTerminated();
+            }
+
+            @Override
+            public void incVisitedCount(int count) {
+              wrapped.incVisitedCount(count);
+            }
+
+            @Override
+            public long visitedCount() {
+              return wrapped.visitedCount();
+            }
+
+            @Override
+            public long visitLimit() {
+              return wrapped.visitLimit();
+            }
+
+            @Override
+            public int k() {
+              return wrapped.k();
+            }
+
+            @Override
+            public boolean collect(int docId, float similarity) {
+              return wrapped.collect(docId, similarity);
+            }
+
+            @Override
+            public float minCompetitiveSimilarity() {
+              return wrapped.minCompetitiveSimilarity();
+            }
+
+            @Override
+            public TopDocs topDocs() {
+              return wrapped.topDocs();
+            }
+
+            @Override
+            public void cacheNode(int ordinal) {
+              try {
+                float[] copy = new float[vectorValues.dimension()];
+                float[] vector = vectorValues.vectorValue(ordinal);
+                System.arraycopy(vector, 0, copy, 0, vector.length);
+                cached.put(ordinal, vector);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            }
+          };
+        }
       }
 
       VamanaGraphSearcher.search(
@@ -433,28 +496,51 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs);
 
       if (pqVectors.containsKey(field)) {
-        collector.rerank(
-            topDocs -> {
-              var exactScorer =
-                  RandomVectorScorer.createFloats(
-                      vectorValues, fieldEntry.similarityFunction, target);
-              var totalHits = topDocs.totalHits;
-              var wrappedScoreDocs = topDocs.scoreDocs;
+        Function<TopDocs, TopDocs> reranker = switch (pqRerank) {
+          case SEQUENTIAL -> topDocs -> {
+            var exactScorer =
+                RandomVectorScorer.createFloats(
+                    vectorValues, fieldEntry.similarityFunction, target);
+            var totalHits = topDocs.totalHits;
+            var wrappedScoreDocs = topDocs.scoreDocs;
 
-              ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-              for (int i = 0; i < scoreDocs.length; i++) {
-                try {
-                  int doc = wrappedScoreDocs[i].doc;
-                  float score = exactScorer.score(doc);
-                  scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-                } catch (Exception e) {
-                  throw new RuntimeException(e);
-                }
+            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+            for (int i = 0; i < scoreDocs.length; i++) {
+              try {
+                int doc = wrappedScoreDocs[i].doc;
+                float score = exactScorer.score(doc);
+                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
               }
+            }
 
-              Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-              return new TopDocs(totalHits, scoreDocs);
-            });
+            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+            return new TopDocs(totalHits, scoreDocs);
+          };
+          case CACHED -> topDocs -> {
+            var totalHits = topDocs.totalHits;
+            var wrappedScoreDocs = topDocs.scoreDocs;
+
+            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+            for (int i = 0; i < scoreDocs.length; i++) {
+              try {
+                int doc = wrappedScoreDocs[i].doc;
+                float[] vector = cached.get(doc);
+                float score = fieldEntry.similarityFunction.compare(target, vector);
+                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            }
+
+            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+            return new TopDocs(totalHits, scoreDocs);
+          };
+          case PARALLEL -> null;
+        };
+
+        collector.rerank(reranker);
       }
     }
   }
@@ -657,9 +743,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /**
-   * Read the nearest-neighbors graph from the index input
-   */
+  /** Read the nearest-neighbors graph from the index input */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;

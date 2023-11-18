@@ -43,16 +43,19 @@ public class TestPQParity {
     //    System.out.println("pq.codebooks[24]. = " +
     // Arrays.deepToString(pq.codebooks()[24].centroids));
 
-    byte[][] allEncoded = ForkJoinPool.commonPool().submit(() ->
-        IntStream.range(0, VECTORS.length)
-            .parallel()
-            .mapToObj(
-                i -> {
-                  float[] vector = VECTORS[i];
-                  return pq.encode(vector);
-                })
-            .toArray(byte[][]::new))
-        .join();
+    byte[][] allEncoded =
+        ForkJoinPool.commonPool()
+            .submit(
+                () ->
+                    IntStream.range(0, VECTORS.length)
+                        .parallel()
+                        .mapToObj(
+                            i -> {
+                              float[] vector = VECTORS[i];
+                              return pq.encode(vector);
+                            })
+                        .toArray(byte[][]::new))
+            .join();
 
     var encoded = pq.encode(VECTORS[13]);
     System.out.println("encoded = " + encoded);
@@ -63,7 +66,8 @@ public class TestPQParity {
     var distance = VectorSimilarityFunction.EUCLIDEAN.compare(VECTORS[0], decoded);
     System.out.println("distance = " + distance);
 
-    var pqSimilarity = new PQVectorScorer(pq, VectorSimilarityFunction.EUCLIDEAN, allEncoded, VECTORS[13]);
+    var pqSimilarity =
+        new PQVectorScorer(pq, VectorSimilarityFunction.EUCLIDEAN, allEncoded, VECTORS[13]);
     var noDecodeDistance = pqSimilarity.score(0);
     System.out.println("noDecodeDistance = " + noDecodeDistance);
   }
