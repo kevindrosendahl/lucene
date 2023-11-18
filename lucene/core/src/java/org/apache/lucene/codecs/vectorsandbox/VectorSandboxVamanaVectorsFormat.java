@@ -145,7 +145,9 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
    */
   private static final int MAXIMUM_MAX_CONN = 512;
 
-  /** Default number of maximum connections per node */
+  /**
+   * Default number of maximum connections per node
+   */
   public static final int DEFAULT_MAX_CONN = 16;
 
   /**
@@ -156,7 +158,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   private static final int MAXIMUM_BEAM_WIDTH = 3200;
 
   /**
-   * Default number of the size of the queue maintained while searching during a graph construction.
+   * Default number of the size of the queue maintained while searching during a graph
+   * construction.
    */
   public static final int DEFAULT_BEAM_WIDTH = 100;
 
@@ -166,7 +169,9 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   public static final boolean DEFAULT_IN_GRAPH_VECTORS = true;
   public static final PQRerank DEFAULT_PQ_RERANK = PQRerank.SEQUENTIAL;
 
-  /** Default to use single thread merge */
+  /**
+   * Default to use single thread merge
+   */
   public static final int DEFAULT_NUM_MERGE_WORKER = 1;
 
   static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
@@ -180,8 +185,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
 
   /**
    * The number of candidate neighbors to track while searching the graph for each newly inserted
-   * node. Defaults to to {@link VectorSandboxVamanaVectorsFormat#DEFAULT_BEAM_WIDTH}. See {@link
-   * VamanaGraph} for details.
+   * node. Defaults to to {@link VectorSandboxVamanaVectorsFormat#DEFAULT_BEAM_WIDTH}. See
+   * {@link VamanaGraph} for details.
    */
   private final int beamWidth;
 
@@ -190,13 +195,17 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   private final boolean inGraphVectors;
   private final PQRerank pqRerank;
 
-  /** Should this codec scalar quantize float32 vectors and use this format */
+  /**
+   * Should this codec scalar quantize float32 vectors and use this format
+   */
   private final VectorSandboxScalarQuantizedVectorsFormat scalarQuantizedVectorsFormat;
 
   private final int numMergeWorkers;
   private final ExecutorService mergeExec;
 
-  /** Constructs a format using default graph construction parameters */
+  /**
+   * Constructs a format using default graph construction parameters
+   */
   public VectorSandboxVamanaVectorsFormat() {
     this(
         DEFAULT_MAX_CONN,
@@ -204,7 +213,6 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
         DEFAULT_ALPHA,
         DEFAULT_PQ_FACTOR,
         DEFAULT_IN_GRAPH_VECTORS,
-        DEFAULT_PQ_RERANK,
         null);
   }
 
@@ -214,7 +222,6 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
       float alpha,
       int pqFactor,
       boolean inGraphVectors,
-      PQRerank pqRerank,
       VectorSandboxScalarQuantizedVectorsFormat scalarQuantize) {
     this(
         maxConn,
@@ -222,7 +229,6 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
         alpha,
         pqFactor,
         inGraphVectors,
-        pqRerank,
         scalarQuantize,
         DEFAULT_NUM_MERGE_WORKER,
         null);
@@ -231,7 +237,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   /**
    * Constructs a format using the given graph construction parameters.
    *
-   * @param maxConn the maximum number of connections to a node in the Vamana graph
+   * @param maxConn   the maximum number of connections to a node in the Vamana graph
    * @param beamWidth the size of the queue maintained during graph construction.
    */
   public VectorSandboxVamanaVectorsFormat(
@@ -239,21 +245,21 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
       int beamWidth,
       float alpha,
       int pqFactor,
-      boolean inGraphVectors,
-      PQRerank pqRerank) {
-    this(maxConn, beamWidth, alpha, pqFactor, inGraphVectors, pqRerank, null);
+      boolean inGraphVectors) {
+    this(maxConn, beamWidth, alpha, pqFactor, inGraphVectors, null);
   }
 
   /**
    * Constructs a format using the given graph construction parameters and scalar quantization.
    *
-   * @param maxConn the maximum number of connections to a node in the Vamana graph
-   * @param beamWidth the size of the queue maintained during graph construction.
-   * @param scalarQuantize the scalar quantization format
+   * @param maxConn         the maximum number of connections to a node in the Vamana graph
+   * @param beamWidth       the size of the queue maintained during graph construction.
+   * @param scalarQuantize  the scalar quantization format
    * @param numMergeWorkers number of workers (threads) that will be used when doing merge. If
-   *     larger than 1, a non-null {@link ExecutorService} must be passed as mergeExec
-   * @param mergeExec the {@link ExecutorService} that will be used by ALL vector writers that are
-   *     generated by this format to do the merge
+   *                        larger than 1, a non-null {@link ExecutorService} must be passed as
+   *                        mergeExec
+   * @param mergeExec       the {@link ExecutorService} that will be used by ALL vector writers that
+   *                        are generated by this format to do the merge
    */
   public VectorSandboxVamanaVectorsFormat(
       int maxConn,
@@ -261,7 +267,6 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
       float alpha,
       int pqFactor,
       boolean inGraphVectors,
-      PQRerank pqRerank,
       VectorSandboxScalarQuantizedVectorsFormat scalarQuantize,
       int numMergeWorkers,
       ExecutorService mergeExec) {
@@ -297,7 +302,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
     this.alpha = alpha;
     this.pqFactor = pqFactor;
     this.inGraphVectors = inGraphVectors;
-    this.pqRerank = pqRerank;
+    this.pqRerank = System.getenv("VAMANA_PQ_RERANK") == null ? DEFAULT_PQ_RERANK
+        : PQRerank.valueOf(System.getenv("VAMANA_PQ_RERANK").toUpperCase());
     this.scalarQuantizedVectorsFormat = scalarQuantize;
     this.numMergeWorkers = numMergeWorkers;
     this.mergeExec = mergeExec;

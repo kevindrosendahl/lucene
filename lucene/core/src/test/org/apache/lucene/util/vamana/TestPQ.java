@@ -68,8 +68,7 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
                 2,
-                false,
-                PQRerank.SEQUENTIAL);
+                false);
           }
         };
 
@@ -198,8 +197,7 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
                 2,
-                true,
-                PQRerank.SEQUENTIAL);
+                true);
           }
         };
 
@@ -213,7 +211,6 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
                 2,
                 true,
-                PQRerank.SEQUENTIAL,
                 null,
                 2,
                 Executors.newCachedThreadPool());

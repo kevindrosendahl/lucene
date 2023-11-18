@@ -19,6 +19,7 @@ package org.apache.lucene.codecs;
 
 import java.io.Closeable;
 import java.io.IOException;
+import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat.PQRerank;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
