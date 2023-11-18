@@ -451,9 +451,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             @Override
             public void cacheNode(int ordinal) {
               try {
-                float[] copy = new float[vectorValues.dimension()];
-                float[] vector = vectorValues.vectorValue(ordinal);
-                System.arraycopy(vector, 0, copy, 0, vector.length);
+                float[] vector = vectorValues.copy().vectorValue(ordinal);
                 cached.put(ordinal, vector);
               } catch (Exception e) {
                 throw new RuntimeException(e);
