@@ -508,9 +508,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             return new TopDocs(totalHits, scoreDocs);
           };
           case PARALLEL -> topDocs -> {
-            var exactScorer =
-                RandomVectorScorer.createFloats(
-                    vectorValues, fieldEntry.similarityFunction, target);
             var totalHits = topDocs.totalHits;
             var wrappedScoreDocs = topDocs.scoreDocs;
 
@@ -519,7 +516,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                 CompletableFuture.runAsync(() -> {
                   try {
                     int doc = wrappedScoreDocs[i].doc;
-                    float score = exactScorer.score(doc);
+                    float score = fieldEntry.similarityFunction.compare(target,
+                        vectorValues.copy().vectorValue(doc));
                     scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
                   } catch (Exception e) {
                     throw new RuntimeException(e);
