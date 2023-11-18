@@ -473,6 +473,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       if (pqVectors.containsKey(field)) {
         Function<TopDocs, TopDocs> reranker = switch (pqRerank) {
+          case NONE -> topDocs -> topDocs;
           case SEQUENTIAL -> topDocs -> {
             var exactScorer =
                 RandomVectorScorer.createFloats(

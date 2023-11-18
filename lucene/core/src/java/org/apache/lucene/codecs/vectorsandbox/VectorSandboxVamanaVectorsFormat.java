@@ -129,6 +129,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
   static final String PQ_DATA_EXTENSION = "vpq";
 
   public enum PQRerank {
+    NONE,
     CACHED,
     SEQUENTIAL,
     PARALLEL,
