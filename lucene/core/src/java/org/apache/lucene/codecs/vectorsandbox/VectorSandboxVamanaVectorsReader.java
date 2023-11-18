@@ -71,8 +71,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
   private final FieldInfos fieldInfos;
-  private final Map<String, FieldEntry> fields = new HashMap<>();
-  private final Map<String, byte[][]> pqVectors = new HashMap<>();
+  public final Map<String, FieldEntry> fields = new HashMap<>();
+  public  final Map<String, byte[][]> pqVectors = new HashMap<>();
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
   private final IndexInput quantizedVectorData;
@@ -522,7 +522,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     return field.scalarQuantizer;
   }
 
-  static class FieldEntry implements Accountable {
+  public static class FieldEntry implements Accountable {
 
     private static final long SHALLOW_SIZE =
         RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class);
@@ -551,7 +551,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     final long pqDataOffset;
     final long pqDataLength;
     final int pqFactor;
-    final ProductQuantization pq;
+    public final ProductQuantization pq;
 
     FieldEntry(
         IndexInput meta, VectorEncoding vectorEncoding, VectorSimilarityFunction similarityFunction)

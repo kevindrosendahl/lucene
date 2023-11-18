@@ -637,10 +637,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         vectorDataInput =
             segmentWriteState.directory.openInput(
                 tempVectorData.getName(), segmentWriteState.context);
-        // Don't copy the bytes to the vectorData file if we didn't quantize, they'll be in the
-        // graph
-        //        vectorData.copyBytes(vectorDataInput, vectorDataInput.length() -
-        // CodecUtil.footerLength());
+        vectorData.copyBytes(vectorDataInput, vectorDataInput.length() - CodecUtil.footerLength());
         CodecUtil.retrieveChecksum(vectorDataInput);
         final RandomVectorScorerSupplier innerScoreSupplier =
             switch (fieldInfo.getVectorEncoding()) {

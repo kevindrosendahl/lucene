@@ -1,5 +1,6 @@
 package org.apache.lucene.util.vamana;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Test;
 
@@ -248,7 +250,7 @@ public class TestPQ extends LuceneTestCase {
             doc.add(new StoredField("id", i++));
             writer.addDocument(doc);
 
-            if (i % (10000 / 2) == 0) {
+            if (i % (10000 / 10) == 0) {
               writer.flush();
             }
           }
@@ -305,6 +307,24 @@ public class TestPQ extends LuceneTestCase {
         System.out.println("mergeResults = " + Arrays.toString(mergeResults));
         System.out.println("mergeLookupResults = " + Arrays.toString(mergeLookupResults));
 
+        var mergeVectors = mergeVectorReader.getFloatVectorValues("vector");
+        mergeVectors.advance(123);
+        var mergeZeroVec = mergeVectors.vectorValue();
+        var encodedMergeZero = mergeVectorReader.pqVectors.get("vector")[123];
+        var mergePq = mergeVectorReader.fields.get("vector").pq;
+        var decodedMergeZero = mergePq.decode(encodedMergeZero);
+        var zeroOrd = mergeSearcher.storedFields().document(123).getField("id").numericValue()
+            .intValue();
+        System.out.println("decodedMergeZero = " + Arrays.toString(decodedMergeZero));
+
+        var noMergeVectors = noMergeVectorReader.getFloatVectorValues("vector");
+        noMergeVectors.advance(zeroOrd);
+        var noMergeVec = noMergeVectors.vectorValue();
+        var encodedNoMerge = noMergeVectorReader.pqVectors.get("vector")[zeroOrd];
+        var noMergePq = noMergeVectorReader.fields.get("vector").pq;
+        var decodedNoMergeZero = noMergePq.decode(encodedNoMerge);
+        System.out.println("decodedNoMergeZero = " + Arrays.toString(decodedNoMergeZero));
+
 //        ScoreDoc[] rerankedResults = new ScoreDoc[mergeResults.length];
 //        for (int i = 0; i < rerankedResults.length; i++) {
 //          try {
@@ -320,6 +340,74 @@ public class TestPQ extends LuceneTestCase {
 //        Arrays.sort(rerankedResults, Comparator.comparing(scoreDoc -> -scoreDoc.score));
 //
 //        System.out.println("rerankedResults = " + Arrays.toString(rerankedResults));
+      }
+    }
+  }
+
+  @Test
+  public void compareGlove100() throws Exception {
+    try (var noMergeDirectory = new MMapDirectory(Path.of(
+        "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:1-forceMerge:false"))) {
+      try (var mergeDirectory = new MMapDirectory(Path.of(
+          "/Users/kevin.rosendahl/src/github.com/kevindrosendahl/java-ann-bench/indexes/glove-100-angular/lucene_sandbox-vamana_maxConn:32-beamWidth:100-alpha:1.2-pqFactor:2-scalarQuantization:false-numThreads:10-forceMerge:true"))) {
+        var noMergeReader = DirectoryReader.open(noMergeDirectory);
+        var noMergeSearcher = new IndexSearcher(noMergeReader);
+        var noMergeleafReader = noMergeReader.leaves().get(0).reader();
+        var noMergePerFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader) ((CodecReader)
+                noMergeleafReader).getVectorReader();
+        var noMergeVectorReader =
+            (VectorSandboxVamanaVectorsReader)
+                noMergePerFieldVectorReader.getFieldReader("vector");
+
+        var mergeReader = DirectoryReader.open(mergeDirectory);
+        var mergeSearcher = new IndexSearcher(mergeReader);
+        var mergeLeafReader = mergeReader.leaves().get(0).reader();
+        var mergePerFieldVectorReader =
+            (PerFieldKnnVectorsFormat.FieldsReader)
+                ((CodecReader) mergeLeafReader).getVectorReader();
+        var mergeVectorReader =
+            (VectorSandboxVamanaVectorsReader)
+                mergePerFieldVectorReader.getFieldReader("vector");
+
+//        var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
+//        var noMergeResults = noMergeSearcher.search(query, 10).scoreDocs;
+//        var mergeResults = mergeSearcher.search(query, 10).scoreDocs;
+//
+//        var mergeLookupResults = new ScoreDoc[mergeResults.length];
+//        for (int i = 0; i < mergeLookupResults.length; i++) {
+//          int id =
+//              mergeSearcher
+//                  .storedFields()
+//                  .document(mergeResults[i].doc)
+//                  .getField("id")
+//                  .numericValue()
+//                  .intValue();
+//          mergeLookupResults[i] = new ScoreDoc(id, mergeResults[i].score,
+//              mergeResults[i].shardIndex);
+//        }
+//
+//        System.out.println("noMergeResults = " + Arrays.toString(noMergeResults));
+//        System.out.println("mergeResults = " + Arrays.toString(mergeResults));
+//        System.out.println("mergeLookupResults = " + Arrays.toString(mergeLookupResults));
+
+        var mergeVectors = mergeVectorReader.getFloatVectorValues("vector");
+        mergeVectors.advance(123);
+        var mergeZeroVec = mergeVectors.vectorValue();
+        var encodedMergeZero = mergeVectorReader.pqVectors.get("vector")[123];
+        var mergePq = mergeVectorReader.fields.get("vector").pq;
+        var decodedMergeZero = mergePq.decode(encodedMergeZero);
+        var zeroOrd = mergeSearcher.storedFields().document(123).getField("id").numericValue()
+            .intValue();
+        System.out.println("decodedMergeZero = " + Arrays.toString(decodedMergeZero));
+
+        var noMergeVectors = noMergeVectorReader.getFloatVectorValues("vector");
+        noMergeVectors.advance(zeroOrd);
+        var noMergeVec = noMergeVectors.vectorValue();
+        var encodedNoMerge = noMergeVectorReader.pqVectors.get("vector")[zeroOrd];
+        var noMergePq = noMergeVectorReader.fields.get("vector").pq;
+        var decodedNoMergeZero = noMergePq.decode(encodedNoMerge);
+        System.out.println("decodedNoMergeZero = " + Arrays.toString(decodedNoMergeZero));
       }
     }
   }
