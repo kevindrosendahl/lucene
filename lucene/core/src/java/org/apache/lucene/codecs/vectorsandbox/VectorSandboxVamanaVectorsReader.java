@@ -108,6 +108,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               versionMeta,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
+
+      if (pqRerank == PQRerank.PARALLEL) {
+        vectorIndex.mlock();
+      }
+
       if (fields.values().stream().anyMatch(FieldEntry::hasQuantizedVectors)) {
         quantizedVectorData =
             openDataInput(
@@ -399,9 +404,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
         scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
-
-        if (pqRerank == PQRerank.PARALLEL) {
-        }
 
         if (pqRerank == PQRerank.CACHED) {
           KnnCollector wrapped = collector;

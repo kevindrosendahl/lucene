@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.vamana.MLock;
 
 /**
  * Base IndexInput implementation that uses an array of MemorySegments to represent a file.
@@ -426,6 +427,12 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
     }
 
     return buildSlice(sliceDescription, offset, length);
+  }
+
+  @Override
+  public void mlock() {
+    System.out.println("mlocking!");
+    Arrays.stream(segments).forEach(MLock::lock);
   }
 
   /** Builds the actual sliced IndexInput (may apply extra offset in subclasses). * */
