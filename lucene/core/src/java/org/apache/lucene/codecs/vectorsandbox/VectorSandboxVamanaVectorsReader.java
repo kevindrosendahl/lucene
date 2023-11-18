@@ -468,6 +468,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       if (pqVectors.containsKey(field)) {
         Function<TopDocs, TopDocs> reranker = switch (pqRerank) {
           case SEQUENTIAL -> topDocs -> {
+            System.out.println("using sequential reranker");
             var exactScorer =
                 RandomVectorScorer.createFloats(
                     vectorValues, fieldEntry.similarityFunction, target);
@@ -489,6 +490,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             return new TopDocs(totalHits, scoreDocs);
           };
           case CACHED -> topDocs -> {
+            System.out.println("using cached reranker");
             var totalHits = topDocs.totalHits;
             var wrappedScoreDocs = topDocs.scoreDocs;
 
@@ -508,6 +510,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             return new TopDocs(totalHits, scoreDocs);
           };
           case PARALLEL -> topDocs -> {
+            System.out.println("using parallel reranker");
             var exactScorer =
                 RandomVectorScorer.createFloats(
                     vectorValues, fieldEntry.similarityFunction, target);
