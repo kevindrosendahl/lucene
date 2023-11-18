@@ -72,7 +72,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   private final FieldInfos fieldInfos;
   public final Map<String, FieldEntry> fields = new HashMap<>();
-  public  final Map<String, byte[][]> pqVectors = new HashMap<>();
+  public final Map<String, byte[][]> pqVectors = new HashMap<>();
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
   private final IndexInput quantizedVectorData;
@@ -316,7 +316,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -404,8 +404,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           //          vectorValues.getAcceptOrds(acceptDocs));
           acceptDocs);
     } else {
-      InGraphOffHeapFloatVectorValues vectorValues =
-          InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
+      RandomAccessVectorValues<float[]> vectorValues = fieldEntry.inGraphVectors ?
+          InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex)
+          : OffHeapFloatVectorValues.load(
+              fieldEntry.ordToDoc,
+              fieldEntry.vectorEncoding,
+              fieldEntry.dimension,
+              fieldEntry.vectorDataOffset,
+              fieldEntry.vectorDataLength,
+              vectorData);
+
       RandomVectorScorer scorer =
           RandomVectorScorer.createFloats(vectorValues, fieldEntry.similarityFunction, target);
 
@@ -413,11 +421,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
-//        scorer =
-//            node -> {
-//              float[] decoded = fieldEntry.pq.decode(encoded[node]);
-//              return fieldEntry.similarityFunction.compare(target, decoded);
-//            };
         scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
       }
 
@@ -533,6 +536,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     final long vectorIndexOffset;
     final long vectorIndexLength;
     final int M;
+    final boolean inGraphVectors;
     final int entryNode;
     final int dimension;
     final int size;
@@ -616,6 +620,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(meta, size);
 
       // read node offsets
+      inGraphVectors = meta.readVInt() == 1;
       M = meta.readVInt();
       if (size > 0 && hasGraph) {
         entryNode = meta.readVInt();
@@ -652,7 +657,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /** Read the nearest-neighbors graph from the index input */
+  /**
+   * Read the nearest-neighbors graph from the index input
+   */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
@@ -667,6 +674,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     // Allocated to be M to track the current neighbors being explored
     private final int[] currentNeighborsBuffer;
     private final int vectorSize;
+    private final boolean inGraphVectors;
 
     OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
       this.dataIn =
@@ -683,6 +691,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           entry.isQuantized
               ? this.dimensions + Float.BYTES
               : this.dimensions * this.encoding.byteSize;
+      this.inGraphVectors = entry.inGraphVectors;
     }
 
     @Override
@@ -692,7 +701,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       // seek to the [vector | adjacency list] for this ordinal, then seek past the vector.
       var targetOffset = graphNodeOffsets.get(targetOrd);
-      dataIn.seek(targetOffset + this.vectorSize);
+      var vectorOffset = inGraphVectors ? this.vectorSize : 0;
+      dataIn.seek(targetOffset + vectorOffset);
 
       arcCount = dataIn.readVInt();
       if (arcCount > 0) {

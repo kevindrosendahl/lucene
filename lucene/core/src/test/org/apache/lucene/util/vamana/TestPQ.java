@@ -66,7 +66,8 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2);
+                2,
+                false);
           }
         };
 
@@ -103,20 +104,20 @@ public class TestPQ extends LuceneTestCase {
                 .setMergeScheduler(new SerialMergeScheduler())
                 .setMergePolicy(NoMergePolicy.INSTANCE);
         try (var writer = new IndexWriter(vamanaDirectory, ingestConfig)) {
-          int i = 0;
+//          int i = 0;
           for (var vector : VECTORS) {
             var doc = new Document();
             doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.COSINE));
-            doc.add(new StoredField("id", i++));
+//            doc.add(new StoredField("id", i++));
             writer.addDocument(doc);
 
-            if (i % (10000 / 2) == 0) {
-              writer.flush();
-            }
+//            if (i % (10000 / 2) == 0) {
+//              writer.flush();
+//            }
           }
 
-          writer.getConfig().setMergePolicy(new TieredMergePolicy());
-          writer.forceMerge(1);
+//          writer.getConfig().setMergePolicy(new TieredMergePolicy());
+//          writer.forceMerge(1);
         }
 
         var hnswReader = DirectoryReader.open(hnswDirectory);
@@ -194,7 +195,7 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2);
+                2, true);
           }
         };
 
@@ -206,7 +207,7 @@ public class TestPQ extends LuceneTestCase {
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
                 VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
-                2, null, 2, Executors.newCachedThreadPool());
+                2, true, null, 2, Executors.newCachedThreadPool());
           }
         };
 

@@ -82,6 +82,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
   private final int beamWidth;
   private final float alpha;
   private final int pqFactor;
+  private final boolean inGraphVectors;
   private final VectorSandboxScalarQuantizedVectorsWriter quantizedVectorsWriter;
   private final int numMergeWorkers;
   private final ExecutorService mergeExec;
@@ -96,6 +97,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       int beamWidth,
       float alpha,
       int pqFactor,
+      boolean inGraphVectors,
       VectorSandboxScalarQuantizedVectorsFormat quantizedVectorsFormat,
       int numMergeWorkers,
       ExecutorService mergeExec)
@@ -104,6 +106,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     this.beamWidth = beamWidth;
     this.alpha = alpha;
     this.pqFactor = pqFactor;
+    this.inGraphVectors = inGraphVectors;
     this.numMergeWorkers = numMergeWorkers;
     this.mergeExec = mergeExec;
     this.pqPool = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
@@ -320,6 +323,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         pqDataLength,
         pq != null ? pq.codebooks() : null,
         fieldData.docsWithField,
+        inGraphVectors,
         graph,
         nodeOffsets);
   }
@@ -439,6 +443,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
         0,
         null,
         newDocsWithField,
+        inGraphVectors,
         mockGraph,
         nodeOffsets);
   }
@@ -763,6 +768,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
           pqDataLength,
           pq != null ? pq.codebooks() : null,
           docsWithField,
+          inGraphVectors,
           graph,
           vectorIndexNodeOffsets);
       success = true;
@@ -815,35 +821,37 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long offsetStart = vectorIndex.getFilePointer();
 
       // Write the full fidelity vector
-      switch (encoding) {
-        case BYTE -> {
-          byte[] v = (byte[]) fieldData.vectors.get(node);
-          vectorIndex.writeBytes(v, v.length);
-        }
-        case FLOAT32 -> {
-          if (fieldData.isQuantized()) {
-            float[] vector = (float[]) fieldData.vectors.get(node);
-            if (fieldData.fieldInfo.getVectorSimilarityFunction()
-                == VectorSimilarityFunction.COSINE) {
-              System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
-              VectorUtil.l2normalize(normalizeCopy);
-            }
+      if (inGraphVectors) {
+        switch (encoding) {
+          case BYTE -> {
+            byte[] v = (byte[]) fieldData.vectors.get(node);
+            vectorIndex.writeBytes(v, v.length);
+          }
+          case FLOAT32 -> {
+            if (fieldData.isQuantized()) {
+              float[] vector = (float[]) fieldData.vectors.get(node);
+              if (fieldData.fieldInfo.getVectorSimilarityFunction()
+                  == VectorSimilarityFunction.COSINE) {
+                System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
+                VectorUtil.l2normalize(normalizeCopy);
+              }
 
-            byte[] quantizedVector = new byte[fieldData.dim];
-            float offsetCorrection =
-                quantizer.quantize(
-                    normalizeCopy != null ? normalizeCopy : vector,
-                    quantizedVector,
-                    fieldData.fieldInfo.getVectorSimilarityFunction());
-            vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
-            quantizationOffsetBuffer.putFloat(offsetCorrection);
-            vectorIndex.writeBytes(
-                quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
-            quantizationOffsetBuffer.rewind();
-          } else {
-            float[] v = (float[]) fieldData.vectors.get(node);
-            vectorBuffer.asFloatBuffer().put(v);
-            vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+              byte[] quantizedVector = new byte[fieldData.dim];
+              float offsetCorrection =
+                  quantizer.quantize(
+                      normalizeCopy != null ? normalizeCopy : vector,
+                      quantizedVector,
+                      fieldData.fieldInfo.getVectorSimilarityFunction());
+              vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
+              quantizationOffsetBuffer.putFloat(offsetCorrection);
+              vectorIndex.writeBytes(
+                  quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
+              quantizationOffsetBuffer.rewind();
+            } else {
+              float[] v = (float[]) fieldData.vectors.get(node);
+              vectorBuffer.asFloatBuffer().put(v);
+              vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+            }
           }
         }
       }
@@ -909,35 +917,37 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long offsetStart = vectorIndex.getFilePointer();
       assert vectors.nextDoc() == node;
 
-      // Write the full fidelity vector
-      switch (encoding) {
-        case BYTE -> {
-          byte[] v = ((ByteVectorValues) vectors).vectorValue();
-          vectorIndex.writeBytes(v, v.length);
-        }
-        case FLOAT32 -> {
-          if (quantized) {
-            float[] vector = ((FloatVectorValues) vectors).vectorValue();
-            if (similarityFunction == VectorSimilarityFunction.COSINE) {
-              System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
-              VectorUtil.l2normalize(normalizeCopy);
-            }
+      if (inGraphVectors) {
+        // Write the full fidelity vector
+        switch (encoding) {
+          case BYTE -> {
+            byte[] v = ((ByteVectorValues) vectors).vectorValue();
+            vectorIndex.writeBytes(v, v.length);
+          }
+          case FLOAT32 -> {
+            if (quantized) {
+              float[] vector = ((FloatVectorValues) vectors).vectorValue();
+              if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                System.arraycopy(vector, 0, normalizeCopy, 0, normalizeCopy.length);
+                VectorUtil.l2normalize(normalizeCopy);
+              }
 
-            byte[] quantizedVector = new byte[dimensions];
-            float offsetCorrection =
-                quantizer.quantize(
-                    normalizeCopy != null ? normalizeCopy : vector,
-                    quantizedVector,
-                    similarityFunction);
-            vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
-            quantizationOffsetBuffer.putFloat(offsetCorrection);
-            vectorIndex.writeBytes(
-                quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
-            quantizationOffsetBuffer.rewind();
-          } else {
-            float[] v = ((FloatVectorValues) vectors).vectorValue();
-            vectorBuffer.asFloatBuffer().put(v);
-            vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+              byte[] quantizedVector = new byte[dimensions];
+              float offsetCorrection =
+                  quantizer.quantize(
+                      normalizeCopy != null ? normalizeCopy : vector,
+                      quantizedVector,
+                      similarityFunction);
+              vectorIndex.writeBytes(quantizedVector, quantizedVector.length);
+              quantizationOffsetBuffer.putFloat(offsetCorrection);
+              vectorIndex.writeBytes(
+                  quantizationOffsetBuffer.array(), quantizationOffsetBuffer.array().length);
+              quantizationOffsetBuffer.rewind();
+            } else {
+              float[] v = ((FloatVectorValues) vectors).vectorValue();
+              vectorBuffer.asFloatBuffer().put(v);
+              vectorIndex.writeBytes(vectorBuffer.array(), vectorBuffer.array().length);
+            }
           }
         }
       }
@@ -1005,6 +1015,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       long pqDataLength,
       Codebook[] codebooks,
       DocsWithFieldSet docsWithField,
+      boolean inGraphVectors,
       VamanaGraph graph,
       int[] graphNodeOffsets)
       throws IOException {
@@ -1071,6 +1082,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
     OrdToDocDISIReaderConfiguration.writeStoredMeta(
         DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
 
+    meta.writeVInt(inGraphVectors ? 1 : 0);
     meta.writeVInt(M);
     // write graph nodes on each level
     if (graph == null) {
