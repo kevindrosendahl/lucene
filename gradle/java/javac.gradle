@@ -69,7 +69,8 @@ allprojects { project ->
         "-Xlint:preview",
         "-Xdoclint:all/protected",
         "-Xdoclint:-missing",
-        "-Xdoclint:-accessibility"
+        "-Xdoclint:-accessibility",
+        "--enable-preview"
       ]
 
       if (project.path == ":lucene:benchmark-jmh") {
