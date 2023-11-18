@@ -60,6 +60,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.pq.PQVectorScorer;
 import org.apache.lucene.util.pq.ProductQuantization;
 import org.apache.lucene.util.pq.ProductQuantization.Codebook;
+import org.apache.lucene.util.vamana.MLock;
 import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
@@ -398,6 +399,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       if (pqVectors.containsKey(field)) {
         byte[][] encoded = pqVectors.get(field);
         scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
+
+        if (pqRerank == PQRerank.PARALLEL) {
+        }
 
         if (pqRerank == PQRerank.CACHED) {
           KnnCollector wrapped = collector;

@@ -48,7 +48,7 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
   final long chunkSizeMask;
   final int chunkSizePower;
   final Arena arena;
-  final MemorySegment[] segments;
+  public final MemorySegment[] segments;
 
   int curSegmentIndex = -1;
   MemorySegment
