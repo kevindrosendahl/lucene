@@ -25,7 +25,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.VamanaGraphProvider;
@@ -68,6 +73,8 @@ import org.apache.lucene.util.vamana.VamanaGraphSearcher;
  */
 public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     implements QuantizedVectorsReader, VamanaGraphProvider {
+
+  private static final ExecutorService PARALLEL_READ_EXECUTOR = Executors.newCachedThreadPool();
 
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
@@ -225,35 +232,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  //  private void readPqVectors(SegmentReadState state, int versionMeta) throws IOException {
-  //    try (var pqData =
-  //        openDataInput(
-  //            state,
-  //            versionMeta,
-  //            VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
-  //            VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME)) {
-  //      for (var entry : fields.entrySet()) {
-  //        var field = entry.getKey();
-  //        var fieldEntry = entry.getValue();
-  //
-  //        if (fieldEntry.pq == null) {
-  //          continue;
-  //        }
-  //
-  //        int M = fieldEntry.pq.M();
-  //        pqData.seek(fieldEntry.pqDataOffset);
-  //
-  //        byte[][] encoded = new byte[fieldEntry.size][];
-  //        for (int i = 0; i < encoded.length; i++) {
-  //          encoded[i] = new byte[M];
-  //          pqData.readBytes(encoded[i], 0, M);
-  //        }
-  //
-  //        pqVectors.put(field, encoded);
-  //      }
-  //    }
-  //  }
-
   private void validateFieldEntry(FieldInfo info, FieldEntry fieldEntry) {
     int dimension = info.getVectorDimension();
     if (dimension != fieldEntry.dimension) {
@@ -320,7 +298,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -345,10 +323,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + VectorEncoding.FLOAT32);
     }
 
-    //    if (!fieldEntry.isQuantized) {
-    //      return InGraphOffHeapFloatVectorValues.load(fieldEntry, vectorIndex);
-    //    }
-
     return OffHeapFloatVectorValues.load(
         fieldEntry.ordToDoc,
         fieldEntry.vectorEncoding,
@@ -370,10 +344,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               + " expected: "
               + VectorEncoding.FLOAT32);
     }
-
-    //    if (!fieldEntry.isQuantized) {
-    //      return InGraphOffHeapByteVectorValues.load(fieldEntry, vectorIndex);
-    //    }
 
     return OffHeapByteVectorValues.load(
         fieldEntry.ordToDoc,
@@ -537,7 +507,31 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
             return new TopDocs(totalHits, scoreDocs);
           };
-          case PARALLEL -> null;
+          case PARALLEL -> topDocs -> {
+            var exactScorer =
+                RandomVectorScorer.createFloats(
+                    vectorValues, fieldEntry.similarityFunction, target);
+            var totalHits = topDocs.totalHits;
+            var wrappedScoreDocs = topDocs.scoreDocs;
+
+            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+            var futures = IntStream.range(0, scoreDocs.length).mapToObj(i ->
+                CompletableFuture.runAsync(() -> {
+                  try {
+                    int doc = wrappedScoreDocs[i].doc;
+                    float score = exactScorer.score(doc);
+                    scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+                  } catch (Exception e) {
+                    throw new RuntimeException(e);
+                  }
+                })
+            ).toList();
+
+            CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+
+            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+            return new TopDocs(totalHits, scoreDocs);
+          };
         };
 
         collector.rerank(reranker);
@@ -743,7 +737,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /** Read the nearest-neighbors graph from the index input */
+  /**
+   * Read the nearest-neighbors graph from the index input
+   */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
