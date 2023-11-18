@@ -352,7 +352,7 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
                             i -> {
                               float[] vector;
                               try {
-                                vector = vectors.vectorValue(i);
+                                vector = vectors.copy().vectorValue(i);
                               } catch (Exception e) {
                                 throw new RuntimeException(e);
                               }

@@ -397,14 +397,23 @@ public class TestPQ extends LuceneTestCase {
         var encodedMergeZero = mergeVectorReader.pqVectors.get("vector")[123];
         var mergePq = mergeVectorReader.fields.get("vector").pq;
         var decodedMergeZero = mergePq.decode(encodedMergeZero);
-        var zeroOrd = mergeSearcher.storedFields().document(123).getField("id").numericValue()
+        var mergeId = mergeSearcher.storedFields().document(123).getField("id").numericValue()
             .intValue();
         System.out.println("decodedMergeZero = " + Arrays.toString(decodedMergeZero));
 
+        int noMergeOrd = -1;
+        for (int i = 0; i < 1183514; i++) {
+          int id = noMergeSearcher.storedFields().document(i).getField("id").numericValue()
+              .intValue();
+          if (id == mergeId) {
+            noMergeOrd = i;
+          }
+        }
+
         var noMergeVectors = noMergeVectorReader.getFloatVectorValues("vector");
-        noMergeVectors.advance(zeroOrd);
+        noMergeVectors.advance(noMergeOrd);
         var noMergeVec = noMergeVectors.vectorValue();
-        var encodedNoMerge = noMergeVectorReader.pqVectors.get("vector")[zeroOrd];
+        var encodedNoMerge = noMergeVectorReader.pqVectors.get("vector")[noMergeOrd];
         var noMergePq = noMergeVectorReader.fields.get("vector").pq;
         var decodedNoMergeZero = noMergePq.decode(encodedNoMerge);
         System.out.println("decodedNoMergeZero = " + Arrays.toString(decodedNoMergeZero));
