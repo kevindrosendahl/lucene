@@ -52,6 +52,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Accountable;
@@ -120,11 +121,13 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       if (pqRerank == PQRerank.IO_URING) {
         Path vectorDataFileName =
-            Path.of(
-                IndexFileNames.segmentFileName(
-                    state.segmentInfo.name,
-                    state.segmentSuffix,
-                    VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
+            ((FSDirectory) state.directory)
+                .getDirectory()
+                .resolve(
+                    IndexFileNames.segmentFileName(
+                        state.segmentInfo.name,
+                        state.segmentSuffix,
+                        VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
         System.out.println("instantiating uring factory");
         uringFactory = IoUring.factory(vectorDataFileName);
       } else {
