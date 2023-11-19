@@ -33,6 +33,7 @@ grant {
 
   // write to scratch
   permission java.io.FilePermission "/Users/kevin.rosendahl/-", "read,write,delete";
+  permission java.lang.RuntimePermission "getenv.VAMANA_PQ_RERANK";
 
   // misc HardlinkCopyDirectoryWrapper needs this to test if hardlinks can be created
   permission java.nio.file.LinkPermission "hard";

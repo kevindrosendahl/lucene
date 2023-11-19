@@ -168,7 +168,7 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
 
   public static final int DEFAULT_PQ_FACTOR = 0;
   public static final boolean DEFAULT_IN_GRAPH_VECTORS = true;
-  public static final PQRerank DEFAULT_PQ_RERANK = PQRerank.SEQUENTIAL;
+  public static final PQRerank DEFAULT_PQ_RERANK = PQRerank.CACHED;
 
   /**
    * Default to use single thread merge

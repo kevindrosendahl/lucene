@@ -455,6 +455,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                 throw new RuntimeException(e);
               }
             }
+
+            @Override
+            public void rerank(Reranker reranker) {
+              wrapped.rerank(reranker);
+            }
           };
         }
       }

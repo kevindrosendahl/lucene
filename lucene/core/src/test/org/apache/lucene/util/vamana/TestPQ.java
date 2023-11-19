@@ -428,4 +428,44 @@ public class TestPQ extends LuceneTestCase {
       }
     }
   }
+
+  @Test
+  public void compareCachingRereank() throws Exception {
+    var codec =
+        new Lucene99Codec() {
+          @Override
+          public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+            return new VectorSandboxVamanaVectorsFormat(
+                VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
+                VectorSandboxVamanaVectorsFormat.DEFAULT_MAX_CONN,
+                VectorSandboxVamanaVectorsFormat.DEFAULT_ALPHA,
+                2,
+                false);
+          }
+        };
+
+    try (var directory = new ByteBuffersDirectory()) {
+      var config = new IndexWriterConfig()
+          .setCodec(codec)
+          .setCommitOnClose(true)
+          .setUseCompoundFile(false)
+          .setMergeScheduler(new SerialMergeScheduler())
+          .setMergePolicy(NoMergePolicy.INSTANCE);
+      try (var writer = new IndexWriter(directory, config)) {
+        for (var vector : VECTORS) {
+          var doc = new Document();
+          doc.add(new KnnFloatVectorField("vector", vector, VectorSimilarityFunction.EUCLIDEAN));
+          writer.addDocument(doc);
+        }
+      }
+
+      var reader = DirectoryReader.open(directory);
+      var searcher = new IndexSearcher(reader);
+
+      var query = new KnnFloatVectorQuery("vector", VECTORS.get(0), 10);
+      var results = searcher.search(query, 10).scoreDocs;
+
+      System.out.println("results = " + Arrays.toString(results));
+    }
+  }
 }
