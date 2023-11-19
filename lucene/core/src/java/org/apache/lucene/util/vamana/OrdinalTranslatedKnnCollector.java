@@ -17,7 +17,6 @@
 
 package org.apache.lucene.util.vamana;
 
-import java.util.function.Function;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;

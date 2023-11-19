@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat;
-import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsFormat.PQRerank;
 import org.apache.lucene.codecs.vectorsandbox.VectorSandboxVamanaVectorsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -445,12 +444,13 @@ public class TestPQ extends LuceneTestCase {
         };
 
     try (var directory = new ByteBuffersDirectory()) {
-      var config = new IndexWriterConfig()
-          .setCodec(codec)
-          .setCommitOnClose(true)
-          .setUseCompoundFile(false)
-          .setMergeScheduler(new SerialMergeScheduler())
-          .setMergePolicy(NoMergePolicy.INSTANCE);
+      var config =
+          new IndexWriterConfig()
+              .setCodec(codec)
+              .setCommitOnClose(true)
+              .setUseCompoundFile(false)
+              .setMergeScheduler(new SerialMergeScheduler())
+              .setMergePolicy(NoMergePolicy.INSTANCE);
       try (var writer = new IndexWriter(directory, config)) {
         for (var vector : VECTORS) {
           var doc = new Document();

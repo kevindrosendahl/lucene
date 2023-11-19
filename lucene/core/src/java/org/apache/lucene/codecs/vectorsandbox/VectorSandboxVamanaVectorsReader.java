@@ -20,7 +20,11 @@ package org.apache.lucene.codecs.vectorsandbox;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -55,6 +59,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.ScalarQuantizer;
+import org.apache.lucene.util.iouring.IoUring;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.pq.PQVectorScorer;
 import org.apache.lucene.util.pq.ProductQuantization;
@@ -86,6 +91,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final IndexInput quantizedVectorData;
   private final PQRerank pqRerank;
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
+  private final IoUring.FileFactory uringFactory;
 
   VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
@@ -107,8 +113,21 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
 
+      // FIXME: read from env var
       if (!fields.get("vector").inGraphVectors) {
         vectorIndex.mlock();
+      }
+
+      if (pqRerank == PQRerank.IO_URING) {
+        Path vectorDataFileName =
+            Path.of(
+                IndexFileNames.segmentFileName(
+                    state.segmentInfo.name,
+                    state.segmentSuffix,
+                    VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
+        uringFactory = IoUring.factory(vectorDataFileName);
+      } else {
+        uringFactory = null;
       }
 
       if (fields.values().stream().anyMatch(FieldEntry::hasQuantizedVectors)) {
@@ -302,7 +321,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -405,62 +424,63 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
         if (pqRerank == PQRerank.CACHED) {
           KnnCollector wrapped = collector;
-          collector = new KnnCollector() {
-            @Override
-            public boolean earlyTerminated() {
-              return wrapped.earlyTerminated();
-            }
+          collector =
+              new KnnCollector() {
+                @Override
+                public boolean earlyTerminated() {
+                  return wrapped.earlyTerminated();
+                }
 
-            @Override
-            public void incVisitedCount(int count) {
-              wrapped.incVisitedCount(count);
-            }
+                @Override
+                public void incVisitedCount(int count) {
+                  wrapped.incVisitedCount(count);
+                }
 
-            @Override
-            public long visitedCount() {
-              return wrapped.visitedCount();
-            }
+                @Override
+                public long visitedCount() {
+                  return wrapped.visitedCount();
+                }
 
-            @Override
-            public long visitLimit() {
-              return wrapped.visitLimit();
-            }
+                @Override
+                public long visitLimit() {
+                  return wrapped.visitLimit();
+                }
 
-            @Override
-            public int k() {
-              return wrapped.k();
-            }
+                @Override
+                public int k() {
+                  return wrapped.k();
+                }
 
-            @Override
-            public boolean collect(int docId, float similarity) {
-              return wrapped.collect(docId, similarity);
-            }
+                @Override
+                public boolean collect(int docId, float similarity) {
+                  return wrapped.collect(docId, similarity);
+                }
 
-            @Override
-            public float minCompetitiveSimilarity() {
-              return wrapped.minCompetitiveSimilarity();
-            }
+                @Override
+                public float minCompetitiveSimilarity() {
+                  return wrapped.minCompetitiveSimilarity();
+                }
 
-            @Override
-            public TopDocs topDocs() {
-              return wrapped.topDocs();
-            }
+                @Override
+                public TopDocs topDocs() {
+                  return wrapped.topDocs();
+                }
 
-            @Override
-            public void cacheNode(int ordinal) {
-              try {
-                float[] vector = vectorValues.copy().vectorValue(ordinal);
-                cached.put(ordinal, vector);
-              } catch (Exception e) {
-                throw new RuntimeException(e);
-              }
-            }
+                @Override
+                public void cacheNode(int ordinal) {
+                  try {
+                    float[] vector = vectorValues.copy().vectorValue(ordinal);
+                    cached.put(ordinal, vector);
+                  } catch (Exception e) {
+                    throw new RuntimeException(e);
+                  }
+                }
 
-            @Override
-            public void rerank(Reranker reranker) {
-              wrapped.rerank(reranker);
-            }
-          };
+                @Override
+                public void rerank(Reranker reranker) {
+                  wrapped.rerank(reranker);
+                }
+              };
         }
       }
 
@@ -473,18 +493,24 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs);
 
       if (pqVectors.containsKey(field)) {
-        Reranker reranker = switch (pqRerank) {
-          case NONE -> new NoneReranker();
-          case SEQUENTIAL -> {
-            var exactScorer =
-                RandomVectorScorer.createFloats(
-                    vectorValues, fieldEntry.similarityFunction, target);
-            yield new SequentialReranker(exactScorer);
-          }
-          case CACHED -> new CachedReranker(fieldEntry.similarityFunction, target, cached);
-          case PARALLEL ->
-              new ParallelReranker(fieldEntry.similarityFunction, vectorValues, target);
-        };
+        Reranker reranker =
+            switch (pqRerank) {
+              case NONE -> new NoneReranker();
+              case SEQUENTIAL -> {
+                var exactScorer =
+                    RandomVectorScorer.createFloats(
+                        vectorValues, fieldEntry.similarityFunction, target);
+                yield new SequentialReranker(exactScorer);
+              }
+              case CACHED -> new CachedReranker(fieldEntry.similarityFunction, target, cached);
+              case PARALLEL -> new ParallelReranker(
+                  fieldEntry.similarityFunction, vectorValues, target);
+              case IO_URING -> new IoUringReranker(
+                  fieldEntry.similarityFunction,
+                  uringFactory.create(knnCollector.k()),
+                  target,
+                  fieldEntry.vectorDataOffset);
+            };
 
         collector.rerank(reranker);
       }
@@ -535,6 +561,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   @Override
   public void close() throws IOException {
+    if (uringFactory != null) {
+      uringFactory.close();
+    }
     IOUtils.close(vectorData, vectorIndex, quantizedVectorData);
   }
 
@@ -689,9 +718,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /**
-   * Read the nearest-neighbors graph from the index input
-   */
+  /** Read the nearest-neighbors graph from the index input */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
@@ -1077,8 +1104,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  private record CachedReranker(VectorSimilarityFunction similarityFunction, float[] query,
-                                Map<Integer, float[]> cached) implements Reranker {
+  private record CachedReranker(
+      VectorSimilarityFunction similarityFunction, float[] query, Map<Integer, float[]> cached)
+      implements Reranker {
 
     @Override
     public TopDocs rerank(TopDocs initial) {
@@ -1102,9 +1130,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  private record ParallelReranker(VectorSimilarityFunction similarityFunction,
-                                  RandomAccessVectorValues<float[]> vectorValues,
-                                  float[] query) implements Reranker {
+  private record ParallelReranker(
+      VectorSimilarityFunction similarityFunction,
+      RandomAccessVectorValues<float[]> vectorValues,
+      float[] query)
+      implements Reranker {
 
     @Override
     public TopDocs rerank(TopDocs initial) {
@@ -1112,23 +1142,77 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       var wrappedScoreDocs = initial.scoreDocs;
 
       ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-      var futures = IntStream.range(0, scoreDocs.length).mapToObj(i ->
-          CompletableFuture.runAsync(() -> {
-            try {
-              int doc = wrappedScoreDocs[i].doc;
-              float[] vector = vectorValues().copy().vectorValue(doc);
-              float score = similarityFunction.compare(query, vector);
-              scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-            } catch (Exception e) {
-              throw new RuntimeException(e);
-            }
-          }, PARALLEL_READ_EXECUTOR)
-      ).toList();
+      var futures =
+          IntStream.range(0, scoreDocs.length)
+              .mapToObj(
+                  i ->
+                      CompletableFuture.runAsync(
+                          () -> {
+                            try {
+                              int doc = wrappedScoreDocs[i].doc;
+                              float[] vector = vectorValues().copy().vectorValue(doc);
+                              float score = similarityFunction.compare(query, vector);
+                              scoreDocs[i] =
+                                  new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+                            } catch (Exception e) {
+                              throw new RuntimeException(e);
+                            }
+                          },
+                          PARALLEL_READ_EXECUTOR))
+              .toList();
 
       CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
 
       Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
       return new TopDocs(totalHits, scoreDocs);
+    }
+  }
+
+  private record IoUringReranker(
+      VectorSimilarityFunction similarityFunction,
+      IoUring ring,
+      float[] query,
+      long fieldVectorsOffset)
+      implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      var totalHits = initial.totalHits;
+      var wrappedScoreDocs = initial.scoreDocs;
+      int vectorSize = query.length * Float.BYTES;
+
+      try (Arena arena = Arena.ofConfined()) {
+        ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+
+        var futures =
+            IntStream.range(0, scoreDocs.length)
+                .mapToObj(
+                    i -> {
+                      int doc = wrappedScoreDocs[i].doc;
+                      MemorySegment buffer = arena.allocate(vectorSize);
+
+                      CompletableFuture<Void> future =
+                          ring.prepare(
+                              buffer, vectorSize, (long) doc * vectorSize + fieldVectorsOffset);
+
+                      future.thenRun(
+                          () -> {
+                            // FIXME: add MemorySegment similarityFunction
+                            float[] vector = buffer.toArray(ValueLayout.JAVA_FLOAT);
+                            float score = similarityFunction.compare(query, vector);
+                            scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+                          });
+
+                      return future;
+                    });
+
+        ring.submit();
+        ring.awaitAll();
+        CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+
+        Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+        return new TopDocs(totalHits, scoreDocs);
+      }
     }
   }
 }

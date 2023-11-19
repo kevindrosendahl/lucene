@@ -1,6 +1,5 @@
 package org.apache.lucene.util.vamana;
 
-
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
@@ -20,17 +19,13 @@ public class MLock {
         linker.downcallHandle(
             stdlib.find("mlock").get(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG));
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
     MUNLOCK =
         linker.downcallHandle(
             stdlib.find("munlock").get(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG));
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
     ERRNO =
         linker.downcallHandle(

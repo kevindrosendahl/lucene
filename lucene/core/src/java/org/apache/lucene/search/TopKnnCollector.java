@@ -17,7 +17,6 @@
 
 package org.apache.lucene.search;
 
-import java.util.function.Function;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 
 /**

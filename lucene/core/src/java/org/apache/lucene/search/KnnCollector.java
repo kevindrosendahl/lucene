@@ -17,8 +17,6 @@
 
 package org.apache.lucene.search;
 
-import java.util.function.Function;
-
 /**
  * KnnCollector is a knn collector used for gathering kNN results and providing topDocs from the
  * gathered neighbors

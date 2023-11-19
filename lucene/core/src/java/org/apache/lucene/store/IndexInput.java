@@ -121,8 +121,7 @@ public abstract class IndexInput extends DataInput implements Closeable {
   public abstract IndexInput slice(String sliceDescription, long offset, long length)
       throws IOException;
 
-  public void mlock() {
-  }
+  public void mlock() {}
 
   /**
    * Subclasses call this to get the String for resourceDescription of a slice of this {@code
