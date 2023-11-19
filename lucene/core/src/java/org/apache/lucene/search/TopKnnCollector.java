@@ -57,9 +57,9 @@ public final class TopKnnCollector extends AbstractKnnCollector {
   }
 
   @Override
-  public void rerank(Function<TopDocs, TopDocs> reranker) {
+  public void rerank(Reranker reranker) {
     getTopDocs();
-    var newTopDocs = reranker.apply(topDocs);
+    var newTopDocs = reranker.rerank(topDocs);
 
     synchronized (this) {
       this.topDocs = newTopDocs;

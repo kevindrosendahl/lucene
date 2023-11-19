@@ -83,7 +83,7 @@ public final class OrdinalTranslatedKnnCollector implements KnnCollector {
   }
 
   @Override
-  public void rerank(Function<TopDocs, TopDocs> reranker) {
+  public void rerank(Reranker reranker) {
     in.rerank(reranker);
   }
 }
