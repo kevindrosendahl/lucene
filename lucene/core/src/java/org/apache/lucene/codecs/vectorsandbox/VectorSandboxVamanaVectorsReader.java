@@ -509,11 +509,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               case CACHED -> new CachedReranker(fieldEntry.similarityFunction, target, cached);
               case PARALLEL -> new ParallelReranker(
                   fieldEntry.similarityFunction, vectorValues, target);
-              case IO_URING -> new IoUringReranker(
-                  fieldEntry.similarityFunction,
-                  uringFactory.create(knnCollector.k()),
-                  target,
-                  fieldEntry.vectorDataOffset);
+              case IO_URING -> {
+                System.out.println("creating ring");
+                IoUring uring = uringFactory.create(knnCollector.k());
+                System.out.println("ring created");
+                yield new IoUringReranker(
+                    fieldEntry.similarityFunction,
+                    uring,
+                    target,
+                    fieldEntry.vectorDataOffset);
+              }
             };
 
         collector.rerank(reranker);
@@ -1195,9 +1200,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                       int doc = wrappedScoreDocs[i].doc;
                       MemorySegment buffer = arena.allocate(vectorSize);
 
+                      System.out.println("preparing i/o " + i);
                       CompletableFuture<Void> future =
                           ring.prepare(
                               buffer, vectorSize, (long) doc * vectorSize + fieldVectorsOffset);
+                      System.out.println("i/o " + i + " prepared");
 
                       future.thenRun(
                           () -> {
@@ -1210,9 +1217,13 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                       return future;
                     });
 
+        System.out.println("submitting i/o requests");
         ring.submit();
+        System.out.println("i/o submitted. awaiting completions");
         ring.awaitAll();
+        System.out.println("completions finished, awaiting futures");
         CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+        System.out.println("futures finished");
 
         Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
         return new TopDocs(totalHits, scoreDocs);

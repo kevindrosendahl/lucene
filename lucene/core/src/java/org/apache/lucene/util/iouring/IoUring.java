@@ -40,7 +40,9 @@ public class IoUring implements Closeable {
   }
 
   static IoUring create(int fd, int entries) {
+    System.out.println("initializing ring");
     MemorySegment ring = WrappedLib.initRing(fd, entries);
+    System.out.println("ring initialized");
     return new IoUring(ring);
   }
 
