@@ -48,7 +48,9 @@ public class IoUring implements Closeable {
 
   public CompletableFuture<Void> prepare(MemorySegment buffer, int numbytes, long offset) {
     long id = counter.getAndIncrement();
-    System.out.println("preparing read " + id);
+    System.out.println(
+        "preparing read " + id + " into buffer at " + buffer + ". numbytes: " + numbytes
+            + " offset: " + offset);
     WrappedLib.prepRead(ring, id, buffer, numbytes, offset);
     CompletableFuture<Void> future = new CompletableFuture<>();
     futures.put(id, future);
