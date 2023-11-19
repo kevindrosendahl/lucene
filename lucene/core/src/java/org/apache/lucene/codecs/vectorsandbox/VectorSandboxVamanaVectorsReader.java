@@ -45,6 +45,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.KnnCollector.Reranker;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -470,71 +471,17 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs);
 
       if (pqVectors.containsKey(field)) {
-        Function<TopDocs, TopDocs> reranker = switch (pqRerank) {
-          case NONE -> topDocs -> topDocs;
-          case SEQUENTIAL -> topDocs -> {
+        Reranker reranker = switch (pqRerank) {
+          case NONE -> new NoneReranker();
+          case SEQUENTIAL -> {
             var exactScorer =
                 RandomVectorScorer.createFloats(
                     vectorValues, fieldEntry.similarityFunction, target);
-            var totalHits = topDocs.totalHits;
-            var wrappedScoreDocs = topDocs.scoreDocs;
-
-            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-            for (int i = 0; i < scoreDocs.length; i++) {
-              try {
-                int doc = wrappedScoreDocs[i].doc;
-                float score = exactScorer.score(doc);
-                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-              } catch (Exception e) {
-                throw new RuntimeException(e);
-              }
-            }
-
-            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-            return new TopDocs(totalHits, scoreDocs);
-          };
-          case CACHED -> topDocs -> {
-            var totalHits = topDocs.totalHits;
-            var wrappedScoreDocs = topDocs.scoreDocs;
-
-            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-            for (int i = 0; i < scoreDocs.length; i++) {
-              try {
-                int doc = wrappedScoreDocs[i].doc;
-                float[] vector = cached.get(doc);
-                float score = fieldEntry.similarityFunction.compare(target, vector);
-                scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-              } catch (Exception e) {
-                throw new RuntimeException(e);
-              }
-            }
-
-            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-            return new TopDocs(totalHits, scoreDocs);
-          };
-          case PARALLEL -> topDocs -> {
-            var totalHits = topDocs.totalHits;
-            var wrappedScoreDocs = topDocs.scoreDocs;
-
-            ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-            var futures = IntStream.range(0, scoreDocs.length).mapToObj(i ->
-                CompletableFuture.runAsync(() -> {
-                  try {
-                    int doc = wrappedScoreDocs[i].doc;
-                    float score = fieldEntry.similarityFunction.compare(target,
-                        vectorValues.copy().vectorValue(doc));
-                    scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-                  } catch (Exception e) {
-                    throw new RuntimeException(e);
-                  }
-                }, PARALLEL_READ_EXECUTOR)
-            ).toList();
-
-            CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
-
-            Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-            return new TopDocs(totalHits, scoreDocs);
-          };
+            yield new SequentialReranker(exactScorer);
+          }
+          case CACHED -> new CachedReranker(fieldEntry.similarityFunction, target, cached);
+          case PARALLEL ->
+              new ParallelReranker(fieldEntry.similarityFunction, vectorValues, target);
         };
 
         collector.rerank(reranker);
@@ -1094,6 +1041,92 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         return doc = NO_MORE_DOCS;
       }
       return doc = target;
+    }
+  }
+
+  private static class NoneReranker implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      return initial;
+    }
+  }
+
+  private record SequentialReranker(RandomVectorScorer exactScorer) implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      var totalHits = initial.totalHits;
+      var wrappedScoreDocs = initial.scoreDocs;
+
+      ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+      for (int i = 0; i < scoreDocs.length; i++) {
+        try {
+          int doc = wrappedScoreDocs[i].doc;
+          float score = exactScorer.score(doc);
+          scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+      return new TopDocs(totalHits, scoreDocs);
+    }
+  }
+
+  private record CachedReranker(VectorSimilarityFunction similarityFunction, float[] query,
+                                Map<Integer, float[]> cached) implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      var totalHits = initial.totalHits;
+      var wrappedScoreDocs = initial.scoreDocs;
+
+      ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+      for (int i = 0; i < scoreDocs.length; i++) {
+        try {
+          int doc = wrappedScoreDocs[i].doc;
+          float[] vector = cached.get(doc);
+          float score = similarityFunction.compare(query, vector);
+          scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+      return new TopDocs(totalHits, scoreDocs);
+    }
+  }
+
+  private record ParallelReranker(VectorSimilarityFunction similarityFunction,
+                                  RandomAccessVectorValues<float[]> vectorValues,
+                                  float[] query) implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      var totalHits = initial.totalHits;
+      var wrappedScoreDocs = initial.scoreDocs;
+
+      ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+      var futures = IntStream.range(0, scoreDocs.length).mapToObj(i ->
+          CompletableFuture.runAsync(() -> {
+            try {
+              int doc = wrappedScoreDocs[i].doc;
+              float[] vector = vectorValues().copy().vectorValue(doc);
+              float score = similarityFunction.compare(query, vector);
+              scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+            } catch (Exception e) {
+              throw new RuntimeException(e);
+            }
+          }, PARALLEL_READ_EXECUTOR)
+      ).toList();
+
+      CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+
+      Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+      return new TopDocs(totalHits, scoreDocs);
     }
   }
 }

@@ -88,7 +88,11 @@ public interface KnnCollector {
    */
   TopDocs topDocs();
 
-  default void rerank(Function<TopDocs, TopDocs> reranker) {}
+  interface Reranker {
+    TopDocs rerank(TopDocs initial);
+  }
+
+  default void rerank(Reranker reranker) {}
 
   default void cacheNode(int ordinal) {}
 }
