@@ -123,7 +123,9 @@ public class IoUring implements Closeable {
     }
 
     static FileFactory create(Path path) {
+      System.out.println("opening file at " + path);
       int fd = open(path, 0);
+      System.out.println("fd = " + fd);
       return new FileFactory(fd);
     }
 

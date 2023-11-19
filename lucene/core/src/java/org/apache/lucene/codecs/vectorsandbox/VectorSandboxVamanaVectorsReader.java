@@ -125,6 +125,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                     state.segmentInfo.name,
                     state.segmentSuffix,
                     VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
+        System.out.println("instantiating uring factory");
         uringFactory = IoUring.factory(vectorDataFileName);
       } else {
         uringFactory = null;
