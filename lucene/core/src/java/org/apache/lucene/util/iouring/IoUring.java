@@ -40,17 +40,12 @@ public class IoUring implements Closeable {
   }
 
   static IoUring create(int fd, int entries) {
-    System.out.println("initializing ring");
     MemorySegment ring = WrappedLib.initRing(fd, entries);
-    System.out.println("ring initialized");
     return new IoUring(ring);
   }
 
   public CompletableFuture<Void> prepare(MemorySegment buffer, int numbytes, long offset) {
     long id = counter.getAndIncrement();
-    System.out.println(
-        "preparing read " + id + " into buffer at " + buffer + ". numbytes: " + numbytes
-            + " offset: " + offset);
     WrappedLib.prepRead(ring, id, buffer, numbytes, offset);
     CompletableFuture<Void> future = new CompletableFuture<>();
     futures.put(id, future);
@@ -58,16 +53,13 @@ public class IoUring implements Closeable {
   }
 
   public void submit() {
-    System.out.println("submitting requests");
     WrappedLib.submitRequests(ring);
   }
 
   public void awaitAll() {
     int i = 0;
     while (true) {
-      System.out.println("awaiting request " + i);
       boolean empty = await();
-      System.out.println("received request " + i + ", empty = " + empty);
       if (empty) {
         return;
       }
@@ -75,11 +67,9 @@ public class IoUring implements Closeable {
   }
 
   public boolean await() {
-    System.out.println("waiting for request");
     MemorySegment result = WrappedLib.waitForRequest(ring);
     int res = (int) WrappedLib.WRAPPED_RESULT_RES_HANDLE.get(result);
     long id = (long) WrappedLib.WRAPPED_RESULT_USER_DATA_HANDLE.get(result);
-    System.out.println("request completed: id " + id + ", res: " + res);
     WrappedLib.completeRequest(ring, result);
 
     CompletableFuture<Void> future = futures.remove(id);
@@ -98,7 +88,6 @@ public class IoUring implements Closeable {
 
   @Override
   public void close() {
-    System.out.println("closing ring");
     WrappedLib.closeRing(ring);
   }
 
@@ -135,9 +124,7 @@ public class IoUring implements Closeable {
     }
 
     static FileFactory create(Path path) {
-      System.out.println("opening file at " + path);
       int fd = open(path, 0);
-      System.out.println("fd = " + fd);
       return new FileFactory(fd);
     }
 
