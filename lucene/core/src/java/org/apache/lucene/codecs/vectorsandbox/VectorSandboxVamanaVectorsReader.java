@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -80,7 +79,17 @@ import org.apache.lucene.util.vamana.VamanaGraphSearcher;
 public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     implements QuantizedVectorsReader, VamanaGraphProvider {
 
-  private static final ExecutorService PARALLEL_READ_EXECUTOR = Executors.newCachedThreadPool();
+  private static final ExecutorService PARALLEL_READ_EXECUTOR;
+
+  static {
+    if (System.getenv("VAMANA_PARALLEL_RERANK_THREADS") == null || System.getenv(
+        "VAMANA_PARALLEL_RERANK_THREADS").equals("unbounded")) {
+      PARALLEL_READ_EXECUTOR = Executors.newCachedThreadPool();
+    } else {
+      int numThreads = Integer.parseInt(System.getenv("VAMANA_PARALLEL_RERANK_THREADS"));
+      PARALLEL_READ_EXECUTOR = Executors.newFixedThreadPool(numThreads);
+    }
+  }
 
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
@@ -116,7 +125,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
 
       // FIXME: read from env var
-      if (!fields.get("vector").inGraphVectors) {
+      boolean mlock = System.getenv("VAMANA_MLOCK") != null && Boolean.parseBoolean(
+          System.getenv("VAMANA_MLOCK"));
+      if (mlock) {
         vectorIndex.mlock();
       }
 
@@ -325,7 +336,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -725,7 +736,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /** Read the nearest-neighbors graph from the index input */
+  /**
+   * Read the nearest-neighbors graph from the index input
+   */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
