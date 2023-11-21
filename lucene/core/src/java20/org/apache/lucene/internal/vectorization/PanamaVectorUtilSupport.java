@@ -87,7 +87,6 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
   private static boolean hasFastFMA() {
     // on ARM cpus, FMA works fine but is a slight slowdown: don't use it.
     if (Constants.OS_ARCH.equals("amd64") == false) {
-      System.out.println("disabling fma");
       return false;
     }
     try {
