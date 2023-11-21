@@ -82,8 +82,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private static final ExecutorService PARALLEL_READ_EXECUTOR;
 
   static {
-    if (System.getenv("VAMANA_PARALLEL_RERANK_THREADS") == null || System.getenv(
-        "VAMANA_PARALLEL_RERANK_THREADS").equals("unbounded")) {
+    if (System.getenv("VAMANA_PARALLEL_RERANK_THREADS") == null
+        || System.getenv("VAMANA_PARALLEL_RERANK_THREADS").equals("unbounded")) {
       PARALLEL_READ_EXECUTOR = Executors.newCachedThreadPool();
     } else {
       int numThreads = Integer.parseInt(System.getenv("VAMANA_PARALLEL_RERANK_THREADS"));
@@ -125,8 +125,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
 
       // FIXME: read from env var
-      boolean mlock = System.getenv("VAMANA_MLOCK") != null && Boolean.parseBoolean(
-          System.getenv("VAMANA_MLOCK"));
+      boolean mlock =
+          System.getenv("VAMANA_MLOCK") != null
+              && Boolean.parseBoolean(System.getenv("VAMANA_MLOCK"));
       if (mlock) {
         vectorIndex.mlock();
       }
@@ -336,7 +337,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -523,10 +524,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               case IO_URING -> {
                 IoUring uring = uringFactory.create(knnCollector.k());
                 yield new IoUringReranker(
-                    fieldEntry.similarityFunction,
-                    uring,
-                    target,
-                    fieldEntry.vectorDataOffset);
+                    fieldEntry.similarityFunction, uring, target, fieldEntry.vectorDataOffset);
               }
             };
 
@@ -736,9 +734,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /**
-   * Read the nearest-neighbors graph from the index input
-   */
+  /** Read the nearest-neighbors graph from the index input */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
@@ -1165,20 +1161,25 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       var futures =
           IntStream.range(0, scoreDocs.length)
               .mapToObj(
-                  i ->
-                      CompletableFuture.runAsync(
-                          () -> {
-                            try {
-                              int doc = wrappedScoreDocs[i].doc;
-                              float[] vector = vectorValues().copy().vectorValue(doc);
+                  i -> {
+                    int doc = wrappedScoreDocs[i].doc;
+                    return CompletableFuture.supplyAsync(
+                            () -> {
+                              try {
+                                return vectorValues().copy().vectorValue(doc);
+                              } catch (Exception e) {
+                                throw new RuntimeException(e);
+                              }
+                            },
+                            PARALLEL_READ_EXECUTOR)
+                        .thenAcceptAsync(
+                            (float[] vector) -> {
                               float score = similarityFunction.compare(query, vector);
                               scoreDocs[i] =
                                   new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-                            } catch (Exception e) {
-                              throw new RuntimeException(e);
-                            }
-                          },
-                          PARALLEL_READ_EXECUTOR))
+                            },
+                            Runnable::run);
+                  })
               .toList();
 
       CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
@@ -1224,7 +1225,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                           });
 
                       return future;
-                    }).toList();
+                    })
+                .toList();
 
         ring.submit();
         ring.awaitAll();
