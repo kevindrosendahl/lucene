@@ -24,6 +24,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -1231,8 +1232,15 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                     return CompletableFuture.supplyAsync(
                             () -> {
                               try {
-                                channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
-                                return buffer.asFloatBuffer().array();
+                                buffer.clear();
+                                channel.read(buffer, (long) doc * vectorSize * Float.BYTES + fieldVectorsOffset);
+
+                                buffer.flip();
+                                FloatBuffer floatBuffer = buffer.asFloatBuffer();
+                                
+                                float[] vector = new float[vectorSize];
+                                floatBuffer.get(vector);
+                                return vector;
                               } catch (Exception e) {
                                 throw new RuntimeException(e);
                               }
