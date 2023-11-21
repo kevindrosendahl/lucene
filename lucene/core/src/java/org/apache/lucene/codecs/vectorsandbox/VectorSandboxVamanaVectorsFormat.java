@@ -132,7 +132,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
     NONE,
     CACHED,
     SEQUENTIAL,
-    PARALLEL,
+    PARALLEL_MMAP,
+    PARALLEL_FILE_IO,
     IO_URING,
   }
 

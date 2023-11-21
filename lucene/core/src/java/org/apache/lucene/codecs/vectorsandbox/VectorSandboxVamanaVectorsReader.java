@@ -24,7 +24,9 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -103,6 +105,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final PQRerank pqRerank;
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
   private final IoUring.FileFactory uringFactory;
+  private final FileChannel channel;
 
   VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
@@ -144,6 +147,20 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         uringFactory = IoUring.factory(vectorDataFileName);
       } else {
         uringFactory = null;
+      }
+
+      if (pqRerank == PQRerank.IO_URING) {
+        Path vectorDataFileName =
+            ((FSDirectory) state.directory)
+                .getDirectory()
+                .resolve(
+                    IndexFileNames.segmentFileName(
+                        state.segmentInfo.name,
+                        state.segmentSuffix,
+                        VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
+        channel = FileChannel.open(vectorDataFileName, StandardOpenOption.READ);
+      } else {
+        channel = null;
       }
 
       if (fields.values().stream().anyMatch(FieldEntry::hasQuantizedVectors)) {
@@ -519,7 +536,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                 yield new SequentialReranker(exactScorer);
               }
               case CACHED -> new CachedReranker(fieldEntry.similarityFunction, target, cached);
-              case PARALLEL -> new ParallelReranker(
+              case PARALLEL_FILE_IO -> new ParallelFileIoReranker(
+                  fieldEntry.similarityFunction, target, channel, fieldEntry.vectorDataOffset);
+              case PARALLEL_MMAP -> new ParallelMmapReranker(
                   fieldEntry.similarityFunction, vectorValues, target);
               case IO_URING -> {
                 IoUring uring = uringFactory.create(knnCollector.k());
@@ -1146,7 +1165,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  private record ParallelReranker(
+  private record ParallelMmapReranker(
       VectorSimilarityFunction similarityFunction,
       RandomAccessVectorValues<float[]> vectorValues,
       float[] query)
@@ -1167,6 +1186,53 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                             () -> {
                               try {
                                 return vectorValues().copy().vectorValue(doc);
+                              } catch (Exception e) {
+                                throw new RuntimeException(e);
+                              }
+                            },
+                            PARALLEL_READ_EXECUTOR)
+                        .thenAcceptAsync(
+                            (float[] vector) -> {
+                              float score = similarityFunction.compare(query, vector);
+                              scoreDocs[i] =
+                                  new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
+                            },
+                            Runnable::run);
+                  })
+              .toList();
+
+      CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+
+      Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+      return new TopDocs(totalHits, scoreDocs);
+    }
+  }
+
+  private record ParallelFileIoReranker(
+      VectorSimilarityFunction similarityFunction,
+      float[] query,
+      FileChannel channel,
+      long fieldVectorsOffset)
+      implements Reranker {
+
+    @Override
+    public TopDocs rerank(TopDocs initial) {
+      var totalHits = initial.totalHits;
+      var wrappedScoreDocs = initial.scoreDocs;
+      int vectorSize = query.length * Float.BYTES;
+
+      ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+      var futures =
+          IntStream.range(0, scoreDocs.length)
+              .mapToObj(
+                  i -> {
+                    ByteBuffer buffer = ByteBuffer.allocate(vectorSize);
+                    int doc = wrappedScoreDocs[i].doc;
+                    return CompletableFuture.supplyAsync(
+                            () -> {
+                              try {
+                                channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
+                                return buffer.asFloatBuffer().array();
                               } catch (Exception e) {
                                 throw new RuntimeException(e);
                               }
