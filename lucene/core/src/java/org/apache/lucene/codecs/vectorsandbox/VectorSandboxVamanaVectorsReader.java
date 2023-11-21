@@ -1232,11 +1232,22 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                     return CompletableFuture.supplyAsync(
                             () -> {
                               try {
+                                System.out.println("buffer = " + buffer);
+                                System.out.println("buffer.order() = " + buffer.order());
+                                System.out.println("buffer.arrayOffset() = " + buffer.arrayOffset());
                                 buffer.clear();
-                                channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
+                                System.out.println("buffer.arrayOffset() = " + buffer.arrayOffset());
+                                int bytesRead = channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
+                                if (bytesRead != vectorSize) {
+                                  // Handle the case where not enough data was read
+                                  throw new IOException("Not enough data read from the channel");
+                                }
+                                System.out.println("buffer.arrayOffset() = " + buffer.arrayOffset());
 
                                 buffer.flip();
+                                System.out.println("buffer.arrayOffset() = " + buffer.arrayOffset());
                                 FloatBuffer floatBuffer = buffer.asFloatBuffer();
+                                System.out.println("floatBuffer = " + floatBuffer);
 
                                 float[] vector = new float[query.length];
                                 floatBuffer.get(vector);
