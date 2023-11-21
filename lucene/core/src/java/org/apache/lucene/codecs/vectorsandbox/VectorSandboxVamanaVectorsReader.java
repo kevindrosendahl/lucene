@@ -149,7 +149,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         uringFactory = null;
       }
 
-      if (pqRerank == PQRerank.IO_URING) {
+      if (pqRerank == PQRerank.PARALLEL_FILE_IO) {
         Path vectorDataFileName =
             ((FSDirectory) state.directory)
                 .getDirectory()
