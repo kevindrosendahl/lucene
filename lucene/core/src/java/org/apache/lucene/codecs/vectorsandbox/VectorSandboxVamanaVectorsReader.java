@@ -24,6 +24,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
@@ -1227,11 +1228,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           IntStream.range(0, scoreDocs.length)
               .mapToObj(
                   i -> {
-                    ByteBuffer buffer = ByteBuffer.allocate(vectorSize);
+                    ByteBuffer buffer = ByteBuffer.allocate(vectorSize).order(ByteOrder.LITTLE_ENDIAN);
                     int doc = wrappedScoreDocs[i].doc;
                     return CompletableFuture.supplyAsync(
                             () -> {
                               try {
+                                System.out.println("i = " + i);
                                 System.out.println("buffer = " + buffer);
                                 System.out.println("buffer.order() = " + buffer.order());
                                 System.out.println("buffer.arrayOffset() = " + buffer.arrayOffset());
