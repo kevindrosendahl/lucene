@@ -1233,12 +1233,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                             () -> {
                               try {
                                 buffer.clear();
-                                channel.read(buffer, (long) doc * vectorSize * Float.BYTES + fieldVectorsOffset);
+                                channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
 
                                 buffer.flip();
                                 FloatBuffer floatBuffer = buffer.asFloatBuffer();
-                                
-                                float[] vector = new float[vectorSize];
+
+                                float[] vector = new float[query.length];
                                 floatBuffer.get(vector);
                                 return vector;
                               } catch (Exception e) {
