@@ -17,6 +17,8 @@
 
 package org.apache.lucene.internal.vectorization;
 
+import java.lang.foreign.MemorySegment;
+
 /**
  * Interface for implementations of VectorUtil support.
  *
@@ -34,6 +36,8 @@ public interface VectorUtilSupport {
 
   /** Returns the sum of squared differences of the two vectors. */
   float squareDistance(float[] a, float[] b);
+
+  float squareDistance(MemorySegment a, MemorySegment b, int length);
 
   float squareDistance(float[] a, int aOffset, float[] b, int bOffset, int length);
 

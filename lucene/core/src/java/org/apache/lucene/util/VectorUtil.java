@@ -17,6 +17,7 @@
 
 package org.apache.lucene.util;
 
+import java.lang.foreign.MemorySegment;
 import org.apache.lucene.internal.vectorization.VectorUtilSupport;
 import org.apache.lucene.internal.vectorization.VectorizationProvider;
 
@@ -80,6 +81,12 @@ public final class VectorUtil {
       throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
     }
     float r = IMPL.squareDistance(a, b);
+    assert Float.isFinite(r);
+    return r;
+  }
+
+  public static float squareDistance(MemorySegment a, MemorySegment b, int length) {
+    float r = IMPL.squareDistance(a, b, length);
     assert Float.isFinite(r);
     return r;
   }

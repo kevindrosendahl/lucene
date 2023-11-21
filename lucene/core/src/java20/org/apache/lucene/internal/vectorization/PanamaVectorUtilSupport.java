@@ -21,6 +21,9 @@ import static jdk.incubator.vector.VectorOperators.B2I;
 import static jdk.incubator.vector.VectorOperators.B2S;
 import static jdk.incubator.vector.VectorOperators.S2I;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
@@ -436,6 +439,91 @@ final class PanamaVectorUtilSupport implements VectorUtilSupport {
     for (; i < limit; i += FLOAT_SPECIES.length()) {
       FloatVector va = FloatVector.fromArray(FLOAT_SPECIES, a, i);
       FloatVector vb = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+      FloatVector diff = va.sub(vb);
+      acc1 = fma(diff, diff, acc1);
+    }
+    // reduce
+    FloatVector res1 = acc1.add(acc2);
+    FloatVector res2 = acc3.add(acc4);
+    return res1.add(res2).reduceLanes(ADD);
+  }
+
+  @Override
+  public float squareDistance(MemorySegment a, MemorySegment b, int length) {
+    int i = 0;
+    float res = 0;
+
+    // if the array size is large (> 2x platform vector size), its worth the overhead to vectorize
+    if (length > 2 * FLOAT_SPECIES.length()) {
+      i += FLOAT_SPECIES.loopBound(length);
+      res += squareDistanceBody(a, b, i);
+    }
+
+    // scalar tail
+    for (; i < length; i++) {
+      float diff =
+          a.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, i)
+              - b.getAtIndex(ValueLayout.JAVA_FLOAT_UNALIGNED, i);
+      res += diff * diff;
+    }
+    return res;
+  }
+
+  /** vectorized square distance body */
+  private float squareDistanceBody(MemorySegment a, MemorySegment b, int limit) {
+    int i = 0;
+    // vector loop is unrolled 4x (4 accumulators in parallel)
+    // we don't know how many the cpu can do at once, some can do 2, some 4
+    FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+    FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+    FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+    FloatVector acc4 = FloatVector.zero(FLOAT_SPECIES);
+    int unrolledLimit = limit - 3 * FLOAT_SPECIES.length();
+    for (; i < unrolledLimit; i += 4 * FLOAT_SPECIES.length()) {
+      // one
+      FloatVector va =
+          FloatVector.fromMemorySegment(FLOAT_SPECIES, a, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb =
+          FloatVector.fromMemorySegment(FLOAT_SPECIES, b, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff1 = va.sub(vb);
+      acc1 = fma(diff1, diff1, acc1);
+
+      // two
+      FloatVector vc =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, a, 4L * i + 4L * +FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vd =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, b, 4L * i + 4L * +FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff2 = vc.sub(vd);
+      acc2 = fma(diff2, diff2, acc2);
+
+      // three
+      FloatVector ve =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, a, 4L * i + 8L * FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vf =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, b, 4L * i + 8L * FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff3 = ve.sub(vf);
+      acc3 = fma(diff3, diff3, acc3);
+
+      // four
+      FloatVector vg =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, a, 4L * i + 12L * FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector vh =
+          FloatVector.fromMemorySegment(
+              FLOAT_SPECIES, b, 4L * i + 12L * FLOAT_SPECIES.length(), ByteOrder.LITTLE_ENDIAN);
+      FloatVector diff4 = vg.sub(vh);
+      acc4 = fma(diff4, diff4, acc4);
+    }
+    // vector tail: less scalar computations for unaligned sizes, esp with big vector sizes
+    for (; i < limit; i += FLOAT_SPECIES.length()) {
+      FloatVector va =
+          FloatVector.fromMemorySegment(FLOAT_SPECIES, a, 4L * i, ByteOrder.LITTLE_ENDIAN);
+      FloatVector vb =
+          FloatVector.fromMemorySegment(FLOAT_SPECIES, b, 4L * i, ByteOrder.LITTLE_ENDIAN);
       FloatVector diff = va.sub(vb);
       acc1 = fma(diff, diff, acc1);
     }

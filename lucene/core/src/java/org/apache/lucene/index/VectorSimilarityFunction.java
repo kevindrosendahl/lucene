@@ -22,6 +22,9 @@ import static org.apache.lucene.util.VectorUtil.dotProductScore;
 import static org.apache.lucene.util.VectorUtil.scaleMaxInnerProductScore;
 import static org.apache.lucene.util.VectorUtil.squareDistance;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+
 /**
  * Vector similarity function; used in search to return top K most similar vectors to a target
  * vector. This is a label describing the method used during indexing and searching of the vectors
@@ -34,6 +37,11 @@ public enum VectorSimilarityFunction {
     @Override
     public float compare(float[] v1, float[] v2) {
       return 1 / (1 + squareDistance(v1, v2));
+    }
+
+    @Override
+    public float compare(MemorySegment m1, MemorySegment m2, int length) {
+      return 1 / (1 + squareDistance(m1, m2, length));
     }
 
     @Override
@@ -105,6 +113,12 @@ public enum VectorSimilarityFunction {
    * @return the value of the similarity function applied to the two vectors
    */
   public abstract float compare(float[] v1, float[] v2);
+
+  public float compare(MemorySegment m1, MemorySegment m2, int length) {
+    float[] v1 = m1.toArray(ValueLayout.JAVA_FLOAT);
+    float[] v2 = m2.toArray(ValueLayout.JAVA_FLOAT);
+    return compare(v1, v2);
+  }
 
   /**
    * Calculates a similarity score between the two vectors with a specified function. Higher

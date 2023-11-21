@@ -1228,13 +1228,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           IntStream.range(0, scoreDocs.length)
               .mapToObj(
                   i -> {
-                    ByteBuffer buffer = ByteBuffer.allocate(vectorSize).order(ByteOrder.LITTLE_ENDIAN);
+                    ByteBuffer buffer =
+                        ByteBuffer.allocate(vectorSize).order(ByteOrder.LITTLE_ENDIAN);
                     int doc = wrappedScoreDocs[i].doc;
                     return CompletableFuture.supplyAsync(
                             () -> {
                               try {
                                 buffer.clear();
-                                int bytesRead = channel.read(buffer, (long) doc * vectorSize + fieldVectorsOffset);
+                                int bytesRead =
+                                    channel.read(
+                                        buffer, (long) doc * vectorSize + fieldVectorsOffset);
                                 if (bytesRead != vectorSize) {
                                   // Handle the case where not enough data was read
                                   throw new IOException("Not enough data read from the channel");
@@ -1283,13 +1286,18 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       try (Arena arena = Arena.ofConfined()) {
         ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+        MemorySegment querySegment = arena.allocate(vectorSize, 64);
+        for (int i = 0; i < query.length; i++) {
+          querySegment.setAtIndex(ValueLayout.JAVA_FLOAT, i, query[i]);
+        }
 
         var futures =
             IntStream.range(0, scoreDocs.length)
                 .mapToObj(
                     i -> {
                       int doc = wrappedScoreDocs[i].doc;
-                      MemorySegment buffer = arena.allocate(vectorSize);
+                      // align to 64 bytes for ideal AVX512 perf
+                      MemorySegment buffer = arena.allocate(vectorSize, 64);
 
                       CompletableFuture<Void> future =
                           ring.prepare(
@@ -1297,9 +1305,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
                       future.thenRun(
                           () -> {
-                            // FIXME: add MemorySegment similarityFunction
-                            float[] vector = buffer.toArray(ValueLayout.JAVA_FLOAT);
-                            float score = similarityFunction.compare(query, vector);
+                            float score =
+                                similarityFunction.compare(querySegment, buffer, query.length);
                             scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
                           });
 

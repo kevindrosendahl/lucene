@@ -17,6 +17,9 @@
 
 package org.apache.lucene.internal.vectorization;
 
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+
 final class DefaultVectorUtilSupport implements VectorUtilSupport {
 
   DefaultVectorUtilSupport() {}
@@ -127,6 +130,13 @@ final class DefaultVectorUtilSupport implements VectorUtilSupport {
       squareSum += diff * diff;
     }
     return squareSum;
+  }
+
+  @Override
+  public float squareDistance(MemorySegment a, MemorySegment b, int length) {
+    float[] av = a.toArray(ValueLayout.JAVA_FLOAT);
+    float[] bv = b.toArray(ValueLayout.JAVA_FLOAT);
+    return squareDistance(av, bv);
   }
 
   @Override
