@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class IoUring implements Closeable {
 
-  private final MemorySegment ring;
+  public final MemorySegment ring;
   private final AtomicLong counter = new AtomicLong();
   private final Map<Long, CompletableFuture<Void>> futures = new ConcurrentHashMap<>();
 

@@ -358,7 +358,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   public long ramBytesUsed() {
     return VectorSandboxVamanaVectorsReader.SHALLOW_SIZE
         + RamUsageEstimator.sizeOfMap(
-            fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
+        fields, RamUsageEstimator.shallowSizeOfInstance(FieldEntry.class));
   }
 
   @Override
@@ -757,7 +757,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  /** Read the nearest-neighbors graph from the index input */
+  /**
+   * Read the nearest-neighbors graph from the index input
+   */
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
@@ -1294,6 +1296,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             querySegment.setAtIndex(ValueLayout.JAVA_FLOAT, i, query[i]);
           }
 
+          writer.println(String.format("ring: %s", ring.ring.address()));
+
           var futures =
               IntStream.range(0, scoreDocs.length)
                   .mapToObj(
@@ -1302,7 +1306,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         // align to 64 bytes for ideal AVX512 perf
                         MemorySegment buffer = arena.allocate(vectorSize, 64);
 
-                        writer.println(i);
+                        writer.println(
+                            String.format("%s: buffer :%s, numbytes: %s, offset: %s", i, buffer,
+                                vectorSize, (long) doc * vectorSize + fieldVectorsOffset));
                         writer.flush();
                         CompletableFuture<Void> future =
                             ring.prepare(
