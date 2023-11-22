@@ -172,7 +172,7 @@ class WrappedLib {
       throw new RuntimeException(invokeErrorString(WAIT_FOR_REQUESTS), t);
     }
 
-    if (uninterpreted == null) {
+    if (uninterpreted == null || uninterpreted.address() == 0) {
       throw new RuntimeException("error waiting for request");
     }
 
