@@ -19,7 +19,9 @@ package org.apache.lucene.codecs.vectorsandbox;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -1284,42 +1286,49 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       var wrappedScoreDocs = initial.scoreDocs;
       int vectorSize = query.length * Float.BYTES;
 
-      try (Arena arena = Arena.ofConfined()) {
-        ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
-        MemorySegment querySegment = arena.allocate(vectorSize, 64);
-        for (int i = 0; i < query.length; i++) {
-          querySegment.setAtIndex(ValueLayout.JAVA_FLOAT, i, query[i]);
+      try (PrintWriter writer = new PrintWriter("lucene.txt")) {
+        try (Arena arena = Arena.ofConfined()) {
+          ScoreDoc[] scoreDocs = new ScoreDoc[wrappedScoreDocs.length];
+          MemorySegment querySegment = arena.allocate(vectorSize, 64);
+          for (int i = 0; i < query.length; i++) {
+            querySegment.setAtIndex(ValueLayout.JAVA_FLOAT, i, query[i]);
+          }
+
+          var futures =
+              IntStream.range(0, scoreDocs.length)
+                  .mapToObj(
+                      i -> {
+                        int doc = wrappedScoreDocs[i].doc;
+                        // align to 64 bytes for ideal AVX512 perf
+                        MemorySegment buffer = arena.allocate(vectorSize, 64);
+
+                        writer.println(i);
+                        writer.flush();
+                        CompletableFuture<Void> future =
+                            ring.prepare(
+                                buffer, vectorSize, (long) doc * vectorSize + fieldVectorsOffset);
+
+                        future.thenRun(
+                            () -> {
+                              float score =
+                                  similarityFunction.compare(querySegment, buffer, query.length);
+                              scoreDocs[i] = new ScoreDoc(doc, score,
+                                  wrappedScoreDocs[i].shardIndex);
+                            });
+
+                        return future;
+                      })
+                  .toList();
+
+          ring.submit();
+          ring.awaitAll();
+          CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+
+          Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
+          return new TopDocs(totalHits, scoreDocs);
         }
-
-        var futures =
-            IntStream.range(0, scoreDocs.length)
-                .mapToObj(
-                    i -> {
-                      int doc = wrappedScoreDocs[i].doc;
-                      // align to 64 bytes for ideal AVX512 perf
-                      MemorySegment buffer = arena.allocate(vectorSize, 64);
-
-                      CompletableFuture<Void> future =
-                          ring.prepare(
-                              buffer, vectorSize, (long) doc * vectorSize + fieldVectorsOffset);
-
-                      future.thenRun(
-                          () -> {
-                            float score =
-                                similarityFunction.compare(querySegment, buffer, query.length);
-                            scoreDocs[i] = new ScoreDoc(doc, score, wrappedScoreDocs[i].shardIndex);
-                          });
-
-                      return future;
-                    })
-                .toList();
-
-        ring.submit();
-        ring.awaitAll();
-        CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
-
-        Arrays.sort(scoreDocs, Comparator.comparing(scoreDoc -> -scoreDoc.score));
-        return new TopDocs(totalHits, scoreDocs);
+      } catch (FileNotFoundException e) {
+        throw new RuntimeException(e);
       }
     }
   }
