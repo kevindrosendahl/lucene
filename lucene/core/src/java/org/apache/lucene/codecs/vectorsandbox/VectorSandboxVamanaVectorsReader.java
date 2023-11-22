@@ -108,6 +108,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
   private final IoUring.FileFactory uringFactory;
   private final FileChannel channel;
+  private final ThreadLocal<IoUring> uring;
 
   VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
@@ -147,8 +148,10 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         state.segmentSuffix,
                         VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
         uringFactory = IoUring.factory(vectorDataFileName);
+        uring = ThreadLocal.withInitial(() -> uringFactory.create(100));
       } else {
         uringFactory = null;
+        uring = null;
       }
 
       if (pqRerank == PQRerank.PARALLEL_FILE_IO) {
@@ -544,7 +547,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               case PARALLEL_MMAP -> new ParallelMmapReranker(
                   fieldEntry.similarityFunction, vectorValues, target);
               case IO_URING -> {
-                uring = uringFactory.create(knnCollector.k());
+                uring = this.uring.get();
                 yield new IoUringReranker(
                     fieldEntry.similarityFunction, uring, target, fieldEntry.vectorDataOffset);
               }
