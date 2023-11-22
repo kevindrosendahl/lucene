@@ -530,6 +530,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs);
 
       if (pqVectors.containsKey(field)) {
+        IoUring uring = null;
         Reranker reranker =
             switch (pqRerank) {
               case NONE -> new NoneReranker();
@@ -545,13 +546,16 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               case PARALLEL_MMAP -> new ParallelMmapReranker(
                   fieldEntry.similarityFunction, vectorValues, target);
               case IO_URING -> {
-                IoUring uring = uringFactory.create(knnCollector.k());
+                uring = uringFactory.create(knnCollector.k());
                 yield new IoUringReranker(
                     fieldEntry.similarityFunction, uring, target, fieldEntry.vectorDataOffset);
               }
             };
 
         collector.rerank(reranker);
+        if (uring != null) {
+          uring.close();
+        }
       }
     }
   }
