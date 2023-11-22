@@ -140,7 +140,7 @@ class WrappedLib {
       throw new RuntimeException(invokeErrorString(INIT_RING_FROM_FD), t);
     }
 
-    if (uninterpreted == null) {
+    if (uninterpreted == null || uninterpreted.address() == 0) {
       throw new RuntimeException("ring could not be created");
     }
 
