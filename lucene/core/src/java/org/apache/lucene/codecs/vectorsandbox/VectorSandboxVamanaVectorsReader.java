@@ -554,9 +554,10 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             };
 
         collector.rerank(reranker);
-        if (uring != null) {
-          uring.close();
-        }
+        // reusing thread local
+//        if (uring != null) {
+//          uring.close();
+//        }
       }
     }
   }
