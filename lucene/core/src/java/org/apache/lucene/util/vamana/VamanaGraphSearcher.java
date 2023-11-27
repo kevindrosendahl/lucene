@@ -33,6 +33,10 @@ import org.apache.lucene.util.SparseFixedBitSet;
  */
 public class VamanaGraphSearcher {
 
+  private static final boolean INITIAL_EP_SEARCH =
+      System.getenv("VAMANA_INITIAL_EP_SEARCH") == null || Boolean.parseBoolean(
+          System.getenv("VAMANA_INITIAL_EP_SEARCH"));
+
   /**
    * Scratch data structures that are used in each {@link #search} call. These can be expensive to
    * allocate, so they're cleared and reused across calls.
@@ -109,14 +113,21 @@ public class VamanaGraphSearcher {
     if (initialEp == -1) {
       return;
     }
-    int[] epAndVisited = graphSearcher.findBestEntryPoint(scorer, graph, knnCollector.visitLimit());
-    int numVisited = epAndVisited[1];
-    int ep = epAndVisited[0];
-    if (ep == -1) {
+
+    int ep;
+    if (INITIAL_EP_SEARCH) {
+      int[] epAndVisited = graphSearcher.findBestEntryPoint(scorer, graph,
+          knnCollector.visitLimit());
+      int numVisited = epAndVisited[1];
+      ep = epAndVisited[0];
+      if (ep == -1) {
+        knnCollector.incVisitedCount(numVisited);
+        return;
+      }
       knnCollector.incVisitedCount(numVisited);
-      return;
+    } else {
+      ep = initialEp;
     }
-    knnCollector.incVisitedCount(numVisited);
     graphSearcher.search(knnCollector, scorer, new int[] {ep}, graph, acceptOrds);
   }
 
@@ -232,7 +243,9 @@ public class VamanaGraphSearcher {
       graphSeek(graph, topCandidateNode);
       results.cacheNode(topCandidateNode);
       int friendOrd;
-      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
+      var neighbors = graph.getNeighbors();
+      while (neighbors.hasNext()){
+        friendOrd = neighbors.nextInt();
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
         if (visited.getAndSet(friendOrd)) {
           continue;

@@ -776,6 +776,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     int arcCount;
     int arcUpTo;
     int arc;
+    NodesIterator neighborsIter;
     private final DirectMonotonicReader graphNodeOffsets;
     // Allocated to be M to track the current neighbors being explored
     private final int[] currentNeighborsBuffer;
@@ -810,6 +811,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       var vectorOffset = inGraphVectors ? this.vectorSize : 0;
       dataIn.seek(targetOffset + vectorOffset);
 
+
       arcCount = dataIn.readVInt();
       if (arcCount > 0) {
         currentNeighborsBuffer[0] = dataIn.readVInt();
@@ -817,6 +819,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           currentNeighborsBuffer[i] = currentNeighborsBuffer[i - 1] + dataIn.readVInt();
         }
       }
+
+      neighborsIter = new ArrayNodesIterator(currentNeighborsBuffer, arcCount);
+
       arc = -1;
       arcUpTo = 0;
     }
@@ -844,6 +849,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     @Override
     public NodesIterator getNodes() {
       return new ArrayNodesIterator(size());
+    }
+
+    @Override
+    public NodesIterator getNeighbors() {
+      return neighborsIter;
     }
   }
 

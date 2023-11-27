@@ -553,6 +553,11 @@ public final class VectorSandboxVamanaVectorsWriter extends KnnVectorsWriter {
       }
 
       @Override
+      public NodesIterator getNeighbors() {
+        return graph.getNeighbors();
+      }
+
+      @Override
       public NodesIterator getNodes() {
         return graph.getNodes();
       }

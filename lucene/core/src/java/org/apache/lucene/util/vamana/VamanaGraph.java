@@ -79,6 +79,8 @@ public abstract class VamanaGraph {
    */
   public abstract int nextNeighbor() throws IOException;
 
+  public abstract NodesIterator getNeighbors();
+
   /** Returns graph's entry point on the top level * */
   public abstract int entryNode() throws IOException;
 
@@ -110,6 +112,11 @@ public abstract class VamanaGraph {
         @Override
         public int entryNode() {
           return 0;
+        }
+
+        @Override
+        public NodesIterator getNeighbors() {
+          return ArrayNodesIterator.EMPTY;
         }
 
         @Override
