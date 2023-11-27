@@ -20,12 +20,14 @@ package org.apache.lucene.util.vamana;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.vamana.VamanaGraph.ArrayNodesIterator;
 
 /**
  * Searches an HNSW graph to find nearest neighbors to a query vector. For more background on the
@@ -33,11 +35,15 @@ import org.apache.lucene.util.SparseFixedBitSet;
  */
 public class VamanaGraphSearcher {
 
+  public record CachedNode(float[] vector, ArrayNodesIterator neighbors) {}
+
   /**
    * Scratch data structures that are used in each {@link #search} call. These can be expensive to
    * allocate, so they're cleared and reused across calls.
    */
   private final NeighborQueue candidates;
+
+  private final Map<Integer, CachedNode> cache;
 
   private BitSet visited;
 
@@ -48,8 +54,14 @@ public class VamanaGraphSearcher {
    * @param visited bit set that will track nodes that have already been visited
    */
   public VamanaGraphSearcher(NeighborQueue candidates, BitSet visited) {
+    this(candidates, visited, null);
+  }
+
+  public VamanaGraphSearcher(
+      NeighborQueue candidates, BitSet visited, Map<Integer, CachedNode> cache) {
     this.candidates = candidates;
     this.visited = visited;
+    this.cache = cache;
   }
 
   /**
@@ -63,11 +75,17 @@ public class VamanaGraphSearcher {
    *     {@code null} if they are all allowed to match.
    */
   public static void search(
-      RandomVectorScorer scorer, KnnCollector knnCollector, VamanaGraph graph, Bits acceptOrds)
+      RandomVectorScorer scorer,
+      KnnCollector knnCollector,
+      VamanaGraph graph,
+      Bits acceptOrds,
+      Map<Integer, CachedNode> cache)
       throws IOException {
     VamanaGraphSearcher graphSearcher =
         new VamanaGraphSearcher(
-            new NeighborQueue(knnCollector.k(), true), new SparseFixedBitSet(getGraphSize(graph)));
+            new NeighborQueue(knnCollector.k(), true),
+            new SparseFixedBitSet(getGraphSize(graph)),
+            cache);
     search(scorer, knnCollector, graph, graphSearcher, acceptOrds);
   }
 
@@ -205,6 +223,7 @@ public class VamanaGraphSearcher {
         float score = scorer.score(ep);
         results.incVisitedCount(1);
         candidates.add(ep, score);
+        results.cacheNode(ep);
         if (acceptOrds == null || acceptOrds.get(ep)) {
           results.collect(ep, score);
         }
@@ -226,8 +245,8 @@ public class VamanaGraphSearcher {
       results.cacheNode(topCandidateNode);
       int friendOrd;
       var neighbors = graph.getNeighbors();
-      while (neighbors.hasNext()){
-//      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
+      while (neighbors.hasNext()) {
+        //      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
         friendOrd = neighbors.nextInt();
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
         if (visited.getAndSet(friendOrd)) {
