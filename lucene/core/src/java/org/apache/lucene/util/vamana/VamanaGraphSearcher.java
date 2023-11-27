@@ -33,10 +33,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
  */
 public class VamanaGraphSearcher {
 
-  private static final boolean INITIAL_EP_SEARCH =
-      System.getenv("VAMANA_INITIAL_EP_SEARCH") == null || Boolean.parseBoolean(
-          System.getenv("VAMANA_INITIAL_EP_SEARCH"));
-
   /**
    * Scratch data structures that are used in each {@link #search} call. These can be expensive to
    * allocate, so they're cleared and reused across calls.
@@ -114,21 +110,7 @@ public class VamanaGraphSearcher {
       return;
     }
 
-    int ep;
-    if (INITIAL_EP_SEARCH) {
-      int[] epAndVisited = graphSearcher.findBestEntryPoint(scorer, graph,
-          knnCollector.visitLimit());
-      int numVisited = epAndVisited[1];
-      ep = epAndVisited[0];
-      if (ep == -1) {
-        knnCollector.incVisitedCount(numVisited);
-        return;
-      }
-      knnCollector.incVisitedCount(numVisited);
-    } else {
-      ep = initialEp;
-    }
-    graphSearcher.search(knnCollector, scorer, new int[] {ep}, graph, acceptOrds);
+    graphSearcher.search(knnCollector, scorer, new int[] {initialEp}, graph, acceptOrds);
   }
 
   /**
