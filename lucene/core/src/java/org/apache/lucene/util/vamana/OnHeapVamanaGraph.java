@@ -136,6 +136,11 @@ public final class OnHeapVamanaGraph extends VamanaGraph implements Accountable 
     return NO_MORE_DOCS;
   }
 
+  @Override
+  public NodesIterator getNeighbors() {
+    return new ArrayNodesIterator(cur.node, cur.node.length);
+  }
+
   /**
    * Returns the graph's current entry node on the top level shown as ordinals of the nodes on 0th
    * level
