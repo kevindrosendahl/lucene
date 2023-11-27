@@ -561,6 +561,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                 }
 
                 @Override
+                public void cacheNode(int ordinal, float[] vector) {
+                  cached.put(ordinal, vector);
+                }
+
+                @Override
                 public void rerank(Reranker reranker) {
                   wrapped.rerank(reranker);
                 }

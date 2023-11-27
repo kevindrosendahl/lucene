@@ -28,6 +28,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.vamana.VamanaGraph.ArrayNodesIterator;
+import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
 
 /**
  * Searches an HNSW graph to find nearest neighbors to a query vector. For more background on the
@@ -241,12 +242,9 @@ public class VamanaGraphSearcher {
       }
 
       int topCandidateNode = candidates.pop();
-      graphSeek(graph, topCandidateNode);
-      results.cacheNode(topCandidateNode);
       int friendOrd;
-      var neighbors = graph.getNeighbors();
+      var neighbors = getNeighbors(results, graph, topCandidateNode);
       while (neighbors.hasNext()) {
-        //      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
         friendOrd = neighbors.nextInt();
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
         if (visited.getAndSet(friendOrd)) {
@@ -286,6 +284,19 @@ public class VamanaGraphSearcher {
    */
   void graphSeek(VamanaGraph graph, int targetNode) throws IOException {
     graph.seek(targetNode);
+  }
+
+  NodesIterator getNeighbors(KnnCollector results, VamanaGraph graph, int targetNode) throws IOException {
+    if (cache == null || !cache.containsKey(targetNode)) {
+      // Not using the cache, so need to seek in the graph (IO happens here).
+      graph.seek(targetNode);
+      results.cacheNode(targetNode);
+      return graph.getNeighbors();
+    }
+
+    var cached = cache.get(targetNode);
+    results.cacheNode(targetNode, cached.vector);
+    return cached.neighbors;
   }
 
   /**

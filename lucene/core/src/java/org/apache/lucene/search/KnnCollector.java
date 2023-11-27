@@ -93,4 +93,6 @@ public interface KnnCollector {
   default void rerank(Reranker reranker) {}
 
   default void cacheNode(int ordinal) {}
+
+  default void cacheNode(int ordinal, float[] vector) {}
 }
