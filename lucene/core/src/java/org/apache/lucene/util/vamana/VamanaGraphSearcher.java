@@ -243,9 +243,10 @@ public class VamanaGraphSearcher {
       graphSeek(graph, topCandidateNode);
       results.cacheNode(topCandidateNode);
       int friendOrd;
-      var neighbors = graph.getNeighbors();
-      while (neighbors.hasNext()){
-        friendOrd = neighbors.nextInt();
+//      var neighbors = graph.getNeighbors();
+//      while (neighbors.hasNext()){
+      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
+//        friendOrd = neighbors.nextInt();
         assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
         if (visited.getAndSet(friendOrd)) {
           continue;
