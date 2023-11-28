@@ -392,7 +392,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
     if (distance > 0) {
       for (int neighbor : neighborCopy) {
-        cacheNeighbors(cache, graph, vectors, ord, distance - 1);
+        cacheNeighbors(cache, graph, vectors, neighbor, distance - 1);
       }
     }
   }
