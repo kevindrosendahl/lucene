@@ -74,6 +74,7 @@ import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
 import org.apache.lucene.util.vamana.VamanaGraph;
 import org.apache.lucene.util.vamana.VamanaGraph.ArrayNodesIterator;
+import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
 import org.apache.lucene.util.vamana.VamanaGraphSearcher;
 import org.apache.lucene.util.vamana.VamanaGraphSearcher.CachedNode;
 
@@ -385,7 +386,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       int distance)
       throws IOException {
     graph.seek(ord);
-    ArrayNodesIterator neighbors = (ArrayNodesIterator) graph.getNeighbors();
+    NodesIterator neighbors = graph.getNeighbors();
     int[] neighborCopy = new int[neighbors.size()];
     int i = 0;
     while (neighbors.hasNext()) {
