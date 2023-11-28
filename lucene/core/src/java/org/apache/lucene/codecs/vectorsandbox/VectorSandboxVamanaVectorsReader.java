@@ -387,14 +387,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     graph.seek(ord);
     ArrayNodesIterator neighbors = (ArrayNodesIterator) graph.getNeighbors();
     int[] neighborCopy = new int[neighbors.size()];
-    neighbors.consume(neighborCopy);
 
-    ArrayNodesIterator copiedNeighbors = new ArrayNodesIterator(neighborCopy, neighborCopy.length);
-    cache.put(ord, new CachedNode(vectors.copy().vectorValue(ord), copiedNeighbors));
+    cache.put(ord, new CachedNode(vectors.copy().vectorValue(ord), neighborCopy));
 
     if (distance > 0) {
-      while (copiedNeighbors.hasNext()) {
-        int neighbor = copiedNeighbors.nextInt();
+      for (int neighbor : neighborCopy) {
         cacheNeighbors(cache, graph, vectors, ord, distance - 1);
       }
     }

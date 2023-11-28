@@ -36,7 +36,7 @@ import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
  */
 public class VamanaGraphSearcher {
 
-  public record CachedNode(float[] vector, ArrayNodesIterator neighbors) {}
+  public record CachedNode(float[] vector, int[] neighbors) {}
 
   /**
    * Scratch data structures that are used in each {@link #search} call. These can be expensive to
@@ -296,7 +296,7 @@ public class VamanaGraphSearcher {
 
     var cached = cache.get(targetNode);
     results.cacheNode(targetNode, cached.vector);
-    return cached.neighbors;
+    return new ArrayNodesIterator(cached.neighbors, cached.neighbors.length);
   }
 
   /**
