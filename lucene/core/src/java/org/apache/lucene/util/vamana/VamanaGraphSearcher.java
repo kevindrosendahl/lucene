@@ -286,7 +286,8 @@ public class VamanaGraphSearcher {
     graph.seek(targetNode);
   }
 
-  NodesIterator getNeighbors(KnnCollector results, VamanaGraph graph, int targetNode) throws IOException {
+  NodesIterator getNeighbors(KnnCollector results, VamanaGraph graph, int targetNode)
+      throws IOException {
     if (cache == null || !cache.containsKey(targetNode)) {
       // Not using the cache, so need to seek in the graph (IO happens here).
       graph.seek(targetNode);

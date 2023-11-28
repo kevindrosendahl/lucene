@@ -292,7 +292,8 @@ public final class VectorSandboxVamanaVectorsFormat extends KnnVectorsFormat {
     this.pqFactor = pqFactor;
     this.inGraphVectors = inGraphVectors;
     this.pqRerank =
-        System.getenv("VAMANA_PQ_RERANK") == null
+        (System.getenv("VAMANA_PQ_RERANK") == null
+                || System.getenv("VAMANA_PQ_RERANK").equals("null"))
             ? DEFAULT_PQ_RERANK
             : PQRerank.valueOf(System.getenv("VAMANA_PQ_RERANK").toUpperCase().replace("-", "_"));
     this.scalarQuantizedVectorsFormat = scalarQuantize;

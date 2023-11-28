@@ -90,6 +90,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   static {
     if (System.getenv("VAMANA_PARALLEL_RERANK_THREADS") == null
+        || System.getenv("VAMANA_PARALLEL_RERANK_THREADS").equals("null")
         || System.getenv("VAMANA_PARALLEL_RERANK_THREADS").equals("unbounded")) {
       PARALLEL_READ_EXECUTOR = Executors.newCachedThreadPool();
     } else {
@@ -100,6 +101,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   private static final int NODE_CACHE_DEGREE =
       System.getenv("VAMANA_CACHE_DEGREE") == null
+              || System.getenv("VAMANA_CACHE_DEGREE").equals("null")
           ? -1
           : Integer.parseInt(System.getenv("VAMANA_CACHE_DEGREE"));
 
@@ -141,7 +143,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       // FIXME: read from env var
       boolean mlock =
-          System.getenv("VAMANA_MLOCK") != null
+          (System.getenv("VAMANA_MLOCK") != null && !System.getenv("VAMANA_MLOCK").equals("null"))
               && Boolean.parseBoolean(System.getenv("VAMANA_MLOCK"));
       if (mlock) {
         vectorIndex.mlock();
