@@ -51,22 +51,6 @@ public class ConcurrentVamanaMerger extends IncrementalVamanaGraphMerger {
   @Override
   protected VamanaBuilder createBuilder(DocIdSetIterator mergedVectorIterator, int maxOrd)
       throws IOException {
-    if (initReader == null) {
-      return new VamanaConcurrentMergeBuilder(
-          exec,
-          numWorker,
-          scorerSupplier,
-          M,
-          beamWidth,
-          alpha,
-          new OnHeapVamanaGraph(M, maxOrd),
-          null);
-    }
-
-    VamanaGraph initializerGraph = ((VamanaGraphProvider) initReader).getGraph(fieldInfo.name);
-    BitSet initializedNodes = new FixedBitSet(maxOrd);
-    int[] oldToNewOrdinalMap = getNewOrdMapping(mergedVectorIterator, initializedNodes);
-
     return new VamanaConcurrentMergeBuilder(
         exec,
         numWorker,
@@ -74,7 +58,7 @@ public class ConcurrentVamanaMerger extends IncrementalVamanaGraphMerger {
         M,
         beamWidth,
         alpha,
-        InitializedVamanaGraphBuilder.initGraph(M, initializerGraph, oldToNewOrdinalMap, maxOrd),
-        initializedNodes);
+        new OnHeapVamanaGraph(M, maxOrd),
+        null);
   }
 }

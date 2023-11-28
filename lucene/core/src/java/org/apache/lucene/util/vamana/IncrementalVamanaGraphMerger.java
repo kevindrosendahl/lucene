@@ -49,10 +49,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
   protected final int beamWidth;
   protected final float alpha;
 
-  protected KnnVectorsReader initReader;
-  protected MergeState.DocMap initDocMap;
-  protected int initGraphSize;
-
   /**
    * @param fieldInfo FieldInfo for the field being merged
    */
@@ -104,11 +100,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
         candidateVectorCount = vectorValues.size();
       }
     }
-    if (candidateVectorCount > initGraphSize) {
-      initReader = currKnnVectorsReader;
-      initDocMap = docMap;
-      initGraphSize = candidateVectorCount;
-    }
     return this;
   }
 
@@ -123,23 +114,7 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
    */
   protected VamanaBuilder createBuilder(DocIdSetIterator mergedVectorIterator, int maxOrd)
       throws IOException {
-    if (initReader == null) {
-      return VamanaGraphBuilder.create(scorerSupplier, M, beamWidth, alpha, maxOrd);
-    }
-
-    VamanaGraph initializerGraph = ((VamanaGraphProvider) initReader).getGraph(fieldInfo.name);
-
-    BitSet initializedNodes = new FixedBitSet(maxOrd);
-    int[] oldToNewOrdinalMap = getNewOrdMapping(mergedVectorIterator, initializedNodes);
-    return InitializedVamanaGraphBuilder.fromGraph(
-        scorerSupplier,
-        M,
-        beamWidth,
-        alpha,
-        initializerGraph,
-        oldToNewOrdinalMap,
-        initializedNodes,
-        maxOrd);
+    return VamanaGraphBuilder.create(scorerSupplier, M, beamWidth, alpha, maxOrd);
   }
 
   @Override
@@ -151,53 +126,6 @@ public class IncrementalVamanaGraphMerger implements VamanaGraphMerger {
     builder.finish();
 
     return graph;
-  }
-
-  /**
-   * Creates a new mapping from old ordinals to new ordinals and returns the total number of vectors
-   * in the newly merged segment.
-   *
-   * @param mergedVectorIterator iterator over the vectors in the merged segment
-   * @param initializedNodes track what nodes have been initialized
-   * @return the mapping from old ordinals to new ordinals
-   * @throws IOException If an error occurs while reading from the merge state
-   */
-  protected final int[] getNewOrdMapping(
-      DocIdSetIterator mergedVectorIterator, BitSet initializedNodes) throws IOException {
-    DocIdSetIterator initializerIterator = null;
-
-    switch (fieldInfo.getVectorEncoding()) {
-      case BYTE -> initializerIterator = initReader.getByteVectorValues(fieldInfo.name);
-      case FLOAT32 -> initializerIterator = initReader.getFloatVectorValues(fieldInfo.name);
-    }
-
-    Map<Integer, Integer> newIdToOldOrdinal = CollectionUtil.newHashMap(initGraphSize);
-    int oldOrd = 0;
-    int maxNewDocID = -1;
-    for (int oldId = initializerIterator.nextDoc();
-        oldId != NO_MORE_DOCS;
-        oldId = initializerIterator.nextDoc()) {
-      int newId = initDocMap.get(oldId);
-      maxNewDocID = Math.max(newId, maxNewDocID);
-      newIdToOldOrdinal.put(newId, oldOrd);
-      oldOrd++;
-    }
-
-    if (maxNewDocID == -1) {
-      return new int[0];
-    }
-    final int[] oldToNewOrdinalMap = new int[initGraphSize];
-    int newOrd = 0;
-    for (int newDocId = mergedVectorIterator.nextDoc();
-        newDocId <= maxNewDocID;
-        newDocId = mergedVectorIterator.nextDoc()) {
-      if (newIdToOldOrdinal.containsKey(newDocId)) {
-        initializedNodes.set(newOrd);
-        oldToNewOrdinalMap[newIdToOldOrdinal.get(newDocId)] = newOrd;
-      }
-      newOrd++;
-    }
-    return oldToNewOrdinalMap;
   }
 
   private static boolean noDeletes(Bits liveDocs) {
