@@ -85,7 +85,6 @@ public abstract class OffHeapByteVectorValues extends ByteVectorValues
       return new EmptyOffHeapVectorValues(dimension);
     }
     IndexInput bytesSlice = vectorData.slice("vector-data", vectorDataOffset, vectorDataLength);
-    bytesSlice.mlock();
     int byteSize = dimension;
     if (configuration.isDense()) {
       return new DenseOffHeapVectorValues(dimension, configuration.size, bytesSlice, byteSize);

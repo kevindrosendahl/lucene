@@ -538,6 +538,17 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                   pqVectorData);
         } else {
           List<byte[]> encoded = pqVectors.get(field);
+          var offHeap = OffHeapByteVectorValues.load(
+              fieldEntry.ordToDoc,
+              VectorEncoding.BYTE,
+              fieldEntry.pq.M(),
+              fieldEntry.pqDataOffset,
+              fieldEntry.pqDataLength,
+              pqVectorData);
+
+          System.out.println("encoded.get(13) = " + Arrays.toString(encoded.get(13)));
+          System.out.println("offHeap.vectorValue(13) = " + Arrays.toString(
+              offHeap.vectorValue(13)));
           encodedPqVectors = new ListRandomAccessVectorValues<>(encoded, fieldEntry.pq.M());
         }
         scorer =
