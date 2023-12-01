@@ -26,8 +26,8 @@ public class IoUring implements Closeable {
     this.ring = ring;
   }
 
-  public static FileFactory factory(Path file) {
-    return FileFactory.create(file);
+  public static FileFactory factory(Path file, boolean directIO) {
+    return FileFactory.create(file, directIO);
   }
 
   public static IoUring create(Path file, int entries) {
@@ -123,7 +123,8 @@ public class IoUring implements Closeable {
       this.fd = fd;
     }
 
-    static FileFactory create(Path path) {
+    static FileFactory create(Path path, boolean direct) {
+      int flags = direct ? 16384 : 0;
       int fd = open(path, 0);
       return new FileFactory(fd);
     }

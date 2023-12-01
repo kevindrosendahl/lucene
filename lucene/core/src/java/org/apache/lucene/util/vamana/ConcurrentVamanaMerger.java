@@ -18,11 +18,8 @@ package org.apache.lucene.util.vamana;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
-import org.apache.lucene.codecs.VamanaGraphProvider;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.FixedBitSet;
 
 /**
  * This merger merges graph in a concurrent manner, by using {@link VamanaConcurrentMergeBuilder}

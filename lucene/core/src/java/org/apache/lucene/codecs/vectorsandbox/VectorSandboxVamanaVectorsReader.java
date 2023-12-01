@@ -73,7 +73,6 @@ import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
 import org.apache.lucene.util.vamana.VamanaGraph;
-import org.apache.lucene.util.vamana.VamanaGraph.ArrayNodesIterator;
 import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
 import org.apache.lucene.util.vamana.VamanaGraphSearcher;
 import org.apache.lucene.util.vamana.VamanaGraphSearcher.CachedNode;
@@ -98,6 +97,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       PARALLEL_READ_EXECUTOR = Executors.newFixedThreadPool(numThreads);
     }
   }
+
+  private static final boolean IO_URING_DIRECT_IO =
+      System.getenv("VAMANA_IO_URING_DIRECT_IO") != null
+          && !System.getenv("VAMANA_IO_URING_DIRECT_IO").equals("null")
+          && Boolean.parseBoolean(System.getenv("VAMANA_IO_URING_DIRECT_IO"));
 
   private static final int NODE_CACHE_DEGREE =
       System.getenv("VAMANA_CACHE_DEGREE") == null
@@ -158,7 +162,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         state.segmentInfo.name,
                         state.segmentSuffix,
                         VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
-        uringFactory = IoUring.factory(vectorDataFileName);
+        uringFactory = IoUring.factory(vectorDataFileName, IO_URING_DIRECT_IO);
         uring = ThreadLocal.withInitial(() -> uringFactory.create(100));
       } else {
         uringFactory = null;
