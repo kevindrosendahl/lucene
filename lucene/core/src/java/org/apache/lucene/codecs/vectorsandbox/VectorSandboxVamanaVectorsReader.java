@@ -135,6 +135,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     boolean success = false;
     try {
       if (!MMAP_PQ_VECTORS) {
+        System.out.println("loading pq vectors");
         readPqVectors(state, versionMeta);
       }
       vectorData =
