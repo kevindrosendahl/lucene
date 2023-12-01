@@ -3,12 +3,13 @@ package org.apache.lucene.util.pq;
 import java.io.IOException;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
 
 public class PQVectorScorer implements RandomVectorScorer {
 
   private final VectorSimilarityFunction similarityFunction;
-  private final byte[][] encoded;
+  private final RandomAccessVectorValues<byte[]> encodedRavv;
   private final float[] partialSums;
   private final float[] partialMagnitudes;
   private final float queryMagnitude;
@@ -16,10 +17,10 @@ public class PQVectorScorer implements RandomVectorScorer {
   public PQVectorScorer(
       ProductQuantization pq,
       VectorSimilarityFunction similarityFunction,
-      byte[][] encoded,
+      RandomAccessVectorValues<byte[]> encodedRavv,
       float[] query) {
     this.similarityFunction = similarityFunction;
-    this.encoded = encoded;
+    this.encodedRavv = encodedRavv;
 
     this.partialSums = new float[pq.M() * ProductQuantization.CLUSTERS];
     this.partialMagnitudes =
@@ -61,7 +62,7 @@ public class PQVectorScorer implements RandomVectorScorer {
 
   @Override
   public float score(int node) throws IOException {
-    byte[] encoded = this.encoded[node];
+    byte[] encoded = this.encodedRavv.vectorValue(node);
     return switch (similarityFunction) {
       case COSINE, DOT_PRODUCT -> (1 + decodedSimilarity(encoded)) / 2;
       case EUCLIDEAN -> 1 / (1 + decodedSimilarity(encoded));

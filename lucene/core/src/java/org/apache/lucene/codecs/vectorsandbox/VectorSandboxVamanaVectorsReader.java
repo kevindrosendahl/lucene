@@ -29,9 +29,11 @@ import java.nio.FloatBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -69,6 +71,7 @@ import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.pq.PQVectorScorer;
 import org.apache.lucene.util.pq.ProductQuantization;
 import org.apache.lucene.util.pq.ProductQuantization.Codebook;
+import org.apache.lucene.util.vamana.ListRandomAccessVectorValues;
 import org.apache.lucene.util.vamana.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
@@ -98,32 +101,26 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     }
   }
 
-  private static final boolean IO_URING_DIRECT_IO =
-      System.getenv("VAMANA_IO_URING_DIRECT_IO") != null
-          && !System.getenv("VAMANA_IO_URING_DIRECT_IO").equals("null")
-          && Boolean.parseBoolean(System.getenv("VAMANA_IO_URING_DIRECT_IO"));
+  private static final boolean IO_URING_DIRECT_IO = getBoolEnv("VAMANA_IO_URING_DIRECT_IO");
 
-  private static final int NODE_CACHE_DEGREE =
-      System.getenv("VAMANA_CACHE_DEGREE") == null
-              || System.getenv("VAMANA_CACHE_DEGREE").equals("null")
-          ? -1
-          : Integer.parseInt(System.getenv("VAMANA_CACHE_DEGREE"));
+  private static final int NODE_CACHE_DEGREE = getIntEnv("VAMANA_CACHE_DEGREE", -1);
 
-  private static final int CANDIDATES =
-      System.getenv("VAMANA_CANDIDATES") == null
-          || System.getenv("VAMANA_CANDIDATES").equals("null")
-          ? 100
-          : Integer.parseInt(System.getenv("VAMANA_CANDIDATES"));
+  private static final int CANDIDATES = getIntEnv("VAMANA_CANDIDATES", 100);
+  private static final boolean MLOCK_GRAPH = getBoolEnv("VAMANA_MLOCK_GRAPH");
+
+  private static final boolean MMAP_PQ_VECTORS = getBoolEnv("VAMANA_MMAP_PQ_VECTORS");
+  private static final boolean MLOCK_PQ_VECTORS = getBoolEnv("VAMANA_MLOCK_PQ_VECTORS");
 
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
   private final FieldInfos fieldInfos;
   public final Map<String, FieldEntry> fields = new HashMap<>();
-  public final Map<String, byte[][]> pqVectors = new HashMap<>();
+  public final Map<String, List<byte[]>> pqVectors = new HashMap<>();
   public final Map<String, Map<Integer, CachedNode>> nodeCaches = new HashMap<>();
   private final IndexInput vectorData;
   private final IndexInput vectorIndex;
+  private final IndexInput pqVectorData;
   private final IndexInput quantizedVectorData;
   private final PQRerank pqRerank;
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
@@ -137,7 +134,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     int versionMeta = readMetadata(state);
     boolean success = false;
     try {
-      readPqVectors(state, versionMeta);
+      if (!MMAP_PQ_VECTORS) {
+        readPqVectors(state, versionMeta);
+      }
       vectorData =
           openDataInput(
               state,
@@ -150,13 +149,21 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               versionMeta,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION,
               VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_CODEC_NAME);
+      pqVectorData =
+          openDataInput(
+              state,
+              versionMeta,
+              VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION,
+              VectorSandboxVamanaVectorsFormat.PQ_DATA_CODEC_NAME);
 
-      // FIXME: read from env var
-      boolean mlock =
-          (System.getenv("VAMANA_MLOCK") != null && !System.getenv("VAMANA_MLOCK").equals("null"))
-              && Boolean.parseBoolean(System.getenv("VAMANA_MLOCK"));
-      if (mlock) {
+      if (MLOCK_GRAPH) {
+        System.out.println("mlocking graph");
         vectorIndex.mlock();
+      }
+
+      if (MLOCK_PQ_VECTORS) {
+        System.out.println("mlocking pq vectors");
+        pqVectorData.mlock();
       }
 
       if (pqRerank == PQRerank.IO_URING) {
@@ -259,10 +266,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         int M = fieldEntry.pq.M();
         pqData.seek(fieldEntry.pqDataOffset);
 
-        byte[][] encoded = new byte[fieldEntry.size][];
-        for (int i = 0; i < encoded.length; i++) {
-          encoded[i] = new byte[M];
-          pqData.readBytes(encoded[i], 0, M);
+        List<byte[]> encoded = new ArrayList<>(fieldEntry.size);
+        for (int i = 0; i < fieldEntry.size; i++) {
+          byte[] bytes = new byte[M];
+          pqData.readBytes(bytes, 0, M);
+          encoded.add(bytes);
         }
 
         pqVectors.put(field, encoded);
@@ -517,8 +525,23 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       Map<Integer, float[]> cached = new HashMap<>();
       if (pqVectors.containsKey(field)) {
-        byte[][] encoded = pqVectors.get(field);
-        scorer = new PQVectorScorer(fieldEntry.pq, fieldEntry.similarityFunction, encoded, target);
+        RandomAccessVectorValues<byte[]> encodedPqVectors;
+        if (MMAP_PQ_VECTORS) {
+          encodedPqVectors =
+              OffHeapByteVectorValues.load(
+                  fieldEntry.ordToDoc,
+                  VectorEncoding.BYTE,
+                  fieldEntry.pq.M(),
+                  fieldEntry.pqDataOffset,
+                  fieldEntry.pqDataLength,
+                  pqVectorData);
+        } else {
+          List<byte[]> encoded = pqVectors.get(field);
+          encodedPqVectors = new ListRandomAccessVectorValues<>(encoded, fieldEntry.pq.M());
+        }
+        scorer =
+            new PQVectorScorer(
+                fieldEntry.pq, fieldEntry.similarityFunction, encodedPqVectors, target);
 
         if (pqRerank == PQRerank.CACHED) {
           KnnCollector wrapped = collector;
@@ -620,10 +643,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
             };
 
         collector.rerank(reranker);
-        // reusing thread local
-        //        if (uring != null) {
-        //          uring.close();
-        //        }
       }
     }
   }
@@ -1406,5 +1425,17 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         return new TopDocs(totalHits, scoreDocs);
       }
     }
+  }
+
+  private static boolean getBoolEnv(String name) {
+    return System.getenv(name) != null
+        && !System.getenv(name).equals("null")
+        && Boolean.parseBoolean(System.getenv(name));
+  }
+
+  private static int getIntEnv(String name, int defaultValue) {
+    return System.getenv(name) == null || System.getenv(name).equals("null")
+        ? defaultValue
+        : Integer.parseInt(System.getenv(name));
   }
 }

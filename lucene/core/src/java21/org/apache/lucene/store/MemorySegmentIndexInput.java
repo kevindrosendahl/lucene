@@ -431,7 +431,6 @@ abstract class MemorySegmentIndexInput extends IndexInput implements RandomAcces
 
   @Override
   public void mlock() {
-    System.out.println("mlocking!");
     Arrays.stream(segments).forEach(MLock::lock);
   }
 
