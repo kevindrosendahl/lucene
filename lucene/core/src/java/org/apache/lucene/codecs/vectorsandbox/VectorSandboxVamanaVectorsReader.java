@@ -109,6 +109,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           ? -1
           : Integer.parseInt(System.getenv("VAMANA_CACHE_DEGREE"));
 
+  private static final int CANDIDATES =
+      System.getenv("VAMANA_CANDIDATES") == null
+          || System.getenv("VAMANA_CANDIDATES").equals("null")
+          ? 100
+          : Integer.parseInt(System.getenv("VAMANA_CANDIDATES"));
+
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
@@ -163,7 +169,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         state.segmentSuffix,
                         VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
         uringFactory = IoUring.factory(vectorDataFileName, IO_URING_DIRECT_IO);
-        uring = ThreadLocal.withInitial(() -> uringFactory.create(100));
+        uring = ThreadLocal.withInitial(() -> uringFactory.create(CANDIDATES));
       } else {
         uringFactory = null;
         uring = null;
