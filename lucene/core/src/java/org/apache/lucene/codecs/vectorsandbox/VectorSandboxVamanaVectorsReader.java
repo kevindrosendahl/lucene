@@ -525,7 +525,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       KnnCollector collector =
           new OrdinalTranslatedKnnCollector(knnCollector, vectorValues::ordToDoc);
       Map<Integer, float[]> cached = new HashMap<>();
-      if (pqVectors.containsKey(field)) {
+      if (pqVectors.containsKey(field) || MMAP_PQ_VECTORS && fieldEntry.pq != null) {
         RandomAccessVectorValues<byte[]> encodedPqVectors;
         if (MMAP_PQ_VECTORS) {
           encodedPqVectors =
@@ -538,17 +538,6 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                   pqVectorData);
         } else {
           List<byte[]> encoded = pqVectors.get(field);
-          var offHeap = OffHeapByteVectorValues.load(
-              fieldEntry.ordToDoc,
-              VectorEncoding.BYTE,
-              fieldEntry.pq.M(),
-              fieldEntry.pqDataOffset,
-              fieldEntry.pqDataLength,
-              pqVectorData);
-
-          System.out.println("encoded.get(13) = " + Arrays.toString(encoded.get(13)));
-          System.out.println("offHeap.vectorValue(13) = " + Arrays.toString(
-              offHeap.vectorValue(13)));
           encodedPqVectors = new ListRandomAccessVectorValues<>(encoded, fieldEntry.pq.M());
         }
         scorer =
