@@ -620,7 +620,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
           acceptDocs,
           this.nodeCaches.get(field));
 
-      if (pqVectors.containsKey(field)) {
+      if (pqVectors.containsKey(field) || MMAP_PQ_VECTORS && fieldEntry.pq != null) {
         IoUring uring = null;
         Reranker reranker =
             switch (pqRerank) {
