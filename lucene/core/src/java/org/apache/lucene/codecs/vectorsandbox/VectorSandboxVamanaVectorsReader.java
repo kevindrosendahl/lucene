@@ -111,6 +111,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private static final boolean MMAP_PQ_VECTORS = getBoolEnv("VAMANA_MMAP_PQ_VECTORS");
   private static final boolean MLOCK_PQ_VECTORS = getBoolEnv("VAMANA_MLOCK_PQ_VECTORS");
 
+  private static final boolean PARALLEL_PQ_VECTORS = getBoolEnv("VAMANA_PARALLEL_PQ_VECTORS");
+
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
@@ -124,9 +126,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final IndexInput quantizedVectorData;
   private final PQRerank pqRerank;
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
-  private final IoUring.FileFactory uringFactory;
+  private final IoUring.FileFactory rerankUringFactory;
+  private final IoUring.FileFactory pqUringFactory;
   private final FileChannel channel;
-  private final ThreadLocal<IoUring> uring;
+  private final ThreadLocal<IoUring> rerankUring;
+  private final ThreadLocal<IoUring> pqUring;
 
   VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
@@ -176,11 +180,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         state.segmentInfo.name,
                         state.segmentSuffix,
                         VectorSandboxVamanaVectorsFormat.VECTOR_DATA_EXTENSION));
-        uringFactory = IoUring.factory(vectorDataFileName, IO_URING_DIRECT_IO);
-        uring = ThreadLocal.withInitial(() -> uringFactory.create(CANDIDATES));
+        rerankUringFactory = IoUring.factory(vectorDataFileName, IO_URING_DIRECT_IO);
+        rerankUring = ThreadLocal.withInitial(() -> rerankUringFactory.create(CANDIDATES));
       } else {
-        uringFactory = null;
-        uring = null;
+        rerankUringFactory = null;
+        rerankUring = null;
       }
 
       if (pqRerank == PQRerank.PARALLEL_FILE_IO) {
@@ -199,6 +203,22 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       if (NODE_CACHE_DEGREE > 0) {
         buildNodeCaches();
+      }
+
+      if (PARALLEL_PQ_VECTORS) {
+        Path pqDataFileName =
+            ((FSDirectory) state.directory)
+                .getDirectory()
+                .resolve(
+                    IndexFileNames.segmentFileName(
+                        state.segmentInfo.name,
+                        state.segmentSuffix,
+                        VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION));
+        pqUringFactory = IoUring.factory(pqDataFileName, IO_URING_DIRECT_IO);
+        pqUring = ThreadLocal.withInitial(() -> rerankUringFactory.create(CANDIDATES));
+      } else {
+        pqUringFactory = null;
+        pqUring = null;
       }
 
       if (fields.values().stream().anyMatch(FieldEntry::hasQuantizedVectors)) {
@@ -542,7 +562,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
         }
         scorer =
             new PQVectorScorer(
-                fieldEntry.pq, fieldEntry.similarityFunction, encodedPqVectors, target);
+                fieldEntry.pq,
+                fieldEntry.similarityFunction,
+                encodedPqVectors,
+                pqUring.get(),
+                fieldEntry.pqDataOffset,
+                target);
 
         if (pqRerank == PQRerank.CACHED) {
           KnnCollector wrapped = collector;
@@ -637,7 +662,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
               case PARALLEL_MMAP -> new ParallelMmapReranker(
                   fieldEntry.similarityFunction, vectorValues, target);
               case IO_URING -> {
-                uring = this.uring.get();
+                uring = this.rerankUring.get();
                 yield new IoUringReranker(
                     fieldEntry.similarityFunction, uring, target, fieldEntry.vectorDataOffset);
               }
@@ -693,8 +718,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   @Override
   public void close() throws IOException {
-    if (uringFactory != null) {
-      uringFactory.close();
+    if (rerankUringFactory != null) {
+      rerankUringFactory.close();
     }
     IOUtils.close(vectorData, vectorIndex, quantizedVectorData);
   }

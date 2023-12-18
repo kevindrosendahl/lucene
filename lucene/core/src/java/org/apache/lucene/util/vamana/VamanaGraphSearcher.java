@@ -20,7 +20,11 @@ package org.apache.lucene.util.vamana;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.util.BitSet;
@@ -35,6 +39,8 @@ import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
  * search algorithm, see {@link VamanaGraph}.
  */
 public class VamanaGraphSearcher {
+
+  private static final boolean PARALLEL_PQ_VECTORS = getBoolEnv("VAMANA_PARALLEL_PQ_VECTORS");
 
   public record CachedNode(float[] vector, int[] neighbors) {}
 
@@ -154,51 +160,6 @@ public class VamanaGraphSearcher {
   }
 
   /**
-   * Function to find the best entry point from which to search the zeroth graph layer.
-   *
-   * @param scorer the scorer to compare the query with the nodes
-   * @param graph the HNSWGraph
-   * @param visitLimit How many vectors are allowed to be visited
-   * @return An integer array whose first element is the best entry point, and second is the number
-   *     of candidates visited. Entry point of `-1` indicates visitation limit exceed
-   * @throws IOException When accessing the vector fails
-   */
-  private int[] findBestEntryPoint(RandomVectorScorer scorer, VamanaGraph graph, long visitLimit)
-      throws IOException {
-    int size = getGraphSize(graph);
-    int visitedCount = 1;
-    prepareScratchState(size);
-    int currentEp = graph.entryNode();
-    float currentScore = scorer.score(currentEp);
-    boolean foundBetter = true;
-    visited.set(currentEp);
-    // Keep searching until we stop finding a better candidate entry point
-    while (foundBetter) {
-      foundBetter = false;
-      graphSeek(graph, currentEp);
-      int friendOrd;
-      while ((friendOrd = graphNextNeighbor(graph)) != NO_MORE_DOCS) {
-        assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
-        if (visited.getAndSet(friendOrd)) {
-          continue;
-        }
-        if (visitedCount >= visitLimit) {
-          return new int[] {-1, visitedCount};
-        }
-        float friendSimilarity = scorer.score(friendOrd);
-        visitedCount++;
-        if (friendSimilarity > currentScore
-            || (friendSimilarity == currentScore && friendOrd < currentEp)) {
-          currentScore = friendSimilarity;
-          currentEp = friendOrd;
-          foundBetter = true;
-        }
-      }
-    }
-    return new int[] {currentEp, visitedCount};
-  }
-
-  /**
    * Add the closest neighbors found to a priority queue (heap). These are returned in REVERSE
    * proximity order -- the most distant neighbor of the topK found, i.e. the one with the lowest
    * score/comparison value, will be at the top of the heap, while the closest neighbor will be the
@@ -231,8 +192,16 @@ public class VamanaGraphSearcher {
       }
     }
 
-    // A bound that holds the minimum similarity to the query vector that a candidate vector must
-    // have to be considered.
+    if (PARALLEL_PQ_VECTORS) {
+      parallelNeighborSearch(results, scorer, graph, acceptOrds, size);
+    } else {
+      sequentialSearch(results, scorer, graph, acceptOrds, size);
+    }
+  }
+
+  private void sequentialSearch(
+      KnnCollector results, RandomVectorScorer scorer, VamanaGraph graph, Bits acceptOrds, int size)
+      throws IOException {
     float minAcceptedSimilarity = results.minCompetitiveSimilarity();
     while (candidates.size() > 0 && results.earlyTerminated() == false) {
       // get the best candidate (closest or best scoring)
@@ -265,6 +234,59 @@ public class VamanaGraphSearcher {
           }
         }
       }
+    }
+  }
+
+  private void parallelNeighborSearch(
+      KnnCollector results, RandomVectorScorer scorer, VamanaGraph graph, Bits acceptOrds, int size)
+      throws IOException {
+    // A bound that holds the minimum similarity to the query vector that a candidate vector must
+    // have to be considered.
+    AtomicReference<Float> minAcceptedSimilarity =
+        new AtomicReference<>(results.minCompetitiveSimilarity());
+    while (candidates.size() > 0 && results.earlyTerminated() == false) {
+      // get the best candidate (closest or best scoring)
+      float topCandidateSimilarity = candidates.topScore();
+      if (topCandidateSimilarity < minAcceptedSimilarity.get()) {
+        break;
+      }
+
+      int topCandidateNode = candidates.pop();
+      int friendOrd;
+      var neighbors = getNeighbors(results, graph, topCandidateNode);
+      List<CompletableFuture<Void>> futures = new ArrayList<>(neighbors.size);
+      while (neighbors.hasNext()) {
+        friendOrd = neighbors.nextInt();
+        assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
+        if (visited.getAndSet(friendOrd)) {
+          continue;
+        }
+
+        if (results.earlyTerminated()) {
+          break;
+        }
+
+        int ord = friendOrd;
+        var future =
+            scorer
+                .scoreAsync(friendOrd)
+                .thenAccept(
+                    friendSimilarity -> {
+                      results.incVisitedCount(1);
+                      if (friendSimilarity >= minAcceptedSimilarity.get()) {
+                        candidates.add(ord, friendSimilarity);
+                        if (acceptOrds == null || acceptOrds.get(ord)) {
+                          if (results.collect(ord, friendSimilarity)) {
+                            minAcceptedSimilarity.set(results.minCompetitiveSimilarity());
+                          }
+                        }
+                      }
+                    });
+
+        futures.add(future);
+      }
+
+      CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
     }
   }
 
@@ -346,5 +368,11 @@ public class VamanaGraphSearcher {
       }
       return NO_MORE_DOCS;
     }
+  }
+
+  private static boolean getBoolEnv(String name) {
+    return System.getenv(name) != null
+        && !System.getenv(name).equals("null")
+        && Boolean.parseBoolean(System.getenv(name));
   }
 }

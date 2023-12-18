@@ -1,8 +1,12 @@
 package org.apache.lucene.util.pq;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.ValueLayout;
+import java.util.concurrent.CompletableFuture;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.iouring.IoUring;
 import org.apache.lucene.util.vamana.RandomAccessVectorValues;
 import org.apache.lucene.util.vamana.RandomVectorScorer;
 
@@ -10,6 +14,8 @@ public class PQVectorScorer implements RandomVectorScorer {
 
   private final VectorSimilarityFunction similarityFunction;
   private final RandomAccessVectorValues<byte[]> encodedRavv;
+  private final IoUring encodedUring;
+  private final long encodedOffset;
   private final float[] partialSums;
   private final float[] partialMagnitudes;
   private final float queryMagnitude;
@@ -18,9 +24,13 @@ public class PQVectorScorer implements RandomVectorScorer {
       ProductQuantization pq,
       VectorSimilarityFunction similarityFunction,
       RandomAccessVectorValues<byte[]> encodedRavv,
+      IoUring encodedUring,
+      long encodedOffset,
       float[] query) {
     this.similarityFunction = similarityFunction;
     this.encodedRavv = encodedRavv;
+    this.encodedUring = encodedUring;
+    this.encodedOffset = encodedOffset;
 
     this.partialSums = new float[pq.M() * ProductQuantization.CLUSTERS];
     this.partialMagnitudes =
@@ -63,30 +73,53 @@ public class PQVectorScorer implements RandomVectorScorer {
   @Override
   public float score(int node) throws IOException {
     byte[] encoded = this.encodedRavv.vectorValue(node);
-    return switch (similarityFunction) {
-      case COSINE, DOT_PRODUCT -> (1 + decodedSimilarity(encoded)) / 2;
-      case EUCLIDEAN -> 1 / (1 + decodedSimilarity(encoded));
-      default -> throw new UnsupportedOperationException(
-          "unsupported PQ similarity function " + similarityFunction);
-    };
+    return decodedSimilarity(encoded);
+  }
+
+  public CompletableFuture<Float> scoreAsync(int node) throws IOException {
+    var arena = Arena.ofConfined();
+    int size = this.encodedRavv.dimension();
+    var buffer = arena.allocate(size);
+    var future = this.encodedUring.prepare(buffer, size, (long) node * size + encodedOffset);
+
+    var scoredFuture =
+        future.thenApply(
+            nothing -> {
+              var encoded = buffer.toArray(ValueLayout.JAVA_BYTE);
+              return decodedSimilarity(encoded);
+            });
+
+    return scoredFuture.handle(
+        (score, throwable) -> {
+          arena.close();
+          return score;
+        });
   }
 
   private float decodedSimilarity(byte[] encoded) {
+    float similarity =
+        switch (similarityFunction) {
+          case DOT_PRODUCT, EUCLIDEAN -> VectorUtil.assembleAndSum(
+              partialSums, ProductQuantization.CLUSTERS, encoded);
+          case COSINE -> {
+            float sum = 0.0f;
+            float mag = 0.0f;
+
+            for (int m = 0; m < encoded.length; ++m) {
+              int centroidIndex = Byte.toUnsignedInt(encoded[m]);
+              sum += partialSums[(m * ProductQuantization.CLUSTERS) + centroidIndex];
+              mag += partialMagnitudes[(m * ProductQuantization.CLUSTERS) + centroidIndex];
+            }
+
+            yield (float) (sum / Math.sqrt(mag * queryMagnitude));
+          }
+          default -> throw new UnsupportedOperationException(
+              "unsupported PQ similarity function " + similarityFunction);
+        };
+
     return switch (similarityFunction) {
-      case DOT_PRODUCT, EUCLIDEAN -> VectorUtil.assembleAndSum(
-          partialSums, ProductQuantization.CLUSTERS, encoded);
-      case COSINE -> {
-        float sum = 0.0f;
-        float mag = 0.0f;
-
-        for (int m = 0; m < encoded.length; ++m) {
-          int centroidIndex = Byte.toUnsignedInt(encoded[m]);
-          sum += partialSums[(m * ProductQuantization.CLUSTERS) + centroidIndex];
-          mag += partialMagnitudes[(m * ProductQuantization.CLUSTERS) + centroidIndex];
-        }
-
-        yield (float) (sum / Math.sqrt(mag * queryMagnitude));
-      }
+      case COSINE, DOT_PRODUCT -> (1 + similarity) / 2;
+      case EUCLIDEAN -> 1 / (1 + similarity);
       default -> throw new UnsupportedOperationException(
           "unsupported PQ similarity function " + similarityFunction);
     };

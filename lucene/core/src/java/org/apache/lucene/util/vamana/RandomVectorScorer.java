@@ -18,6 +18,7 @@
 package org.apache.lucene.util.vamana;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
 /** A {@link RandomVectorScorer} for scoring random nodes in batches against an abstract query. */
@@ -29,6 +30,10 @@ public interface RandomVectorScorer {
    * @return the computed score
    */
   float score(int node) throws IOException;
+
+  default CompletableFuture<Float> scoreAsync(int node) throws IOException {
+    return CompletableFuture.completedFuture(score(node));
+  }
 
   /**
    * Creates a default scorer for float vectors.
