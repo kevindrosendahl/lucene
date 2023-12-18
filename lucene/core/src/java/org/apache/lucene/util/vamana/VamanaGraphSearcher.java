@@ -262,10 +262,6 @@ public class VamanaGraphSearcher {
           continue;
         }
 
-        if (results.earlyTerminated()) {
-          break;
-        }
-
         int ord = friendOrd;
         var future =
             scorer
@@ -287,7 +283,9 @@ public class VamanaGraphSearcher {
       }
 
       scorer.submitAndAwaitAsyncScores();
+      System.out.println("awaiting futures");
       CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+      System.out.println("done futures");
     }
   }
 

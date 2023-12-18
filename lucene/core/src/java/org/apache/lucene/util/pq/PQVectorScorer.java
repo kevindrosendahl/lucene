@@ -78,6 +78,7 @@ public class PQVectorScorer implements RandomVectorScorer {
 
   @Override
   public CompletableFuture<Float> prepareScoreAsync(int node) {
+    System.out.println("preparing async score");
     var arena = Arena.ofConfined();
     int size = this.encodedRavv.dimension();
     var buffer = arena.allocate(size);
@@ -99,8 +100,11 @@ public class PQVectorScorer implements RandomVectorScorer {
 
   @Override
   public void submitAndAwaitAsyncScores() {
+    System.out.println("submitting async scores");
     this.encodedUring.submit();
+    System.out.println("awaiting async scores");
     this.encodedUring.awaitAll();
+    System.out.println("finished awaiting");
   }
 
   private float decodedSimilarity(byte[] encoded) {
