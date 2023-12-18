@@ -215,7 +215,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                         state.segmentSuffix,
                         VectorSandboxVamanaVectorsFormat.PQ_DATA_EXTENSION));
         pqUringFactory = IoUring.factory(pqDataFileName, IO_URING_DIRECT_IO);
-        pqUring = ThreadLocal.withInitial(() -> rerankUringFactory.create(CANDIDATES));
+        pqUring = ThreadLocal.withInitial(() -> pqUringFactory.create(CANDIDATES));
       } else {
         pqUringFactory = null;
         pqUring = null;
@@ -565,7 +565,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
                 fieldEntry.pq,
                 fieldEntry.similarityFunction,
                 encodedPqVectors,
-                pqUring.get(),
+                PARALLEL_PQ_VECTORS ? pqUring.get() : null,
                 fieldEntry.pqDataOffset,
                 target);
 
