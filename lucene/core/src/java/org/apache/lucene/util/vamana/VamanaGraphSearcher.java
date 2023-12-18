@@ -282,10 +282,12 @@ public class VamanaGraphSearcher {
         futures.add(future);
       }
 
-      scorer.submitAndAwaitAsyncScores();
-      System.out.println("awaiting futures");
-      CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
-      System.out.println("done futures");
+      if (!futures.isEmpty()) {
+        scorer.submitAndAwaitAsyncScores();
+        System.out.println("awaiting futures");
+        CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
+        System.out.println("done futures");
+      }
     }
   }
 
