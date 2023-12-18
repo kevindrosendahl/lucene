@@ -269,7 +269,7 @@ public class VamanaGraphSearcher {
         int ord = friendOrd;
         var future =
             scorer
-                .scoreAsync(friendOrd)
+                .prepareScoreAsync(friendOrd)
                 .thenAccept(
                     friendSimilarity -> {
                       results.incVisitedCount(1);
@@ -286,6 +286,7 @@ public class VamanaGraphSearcher {
         futures.add(future);
       }
 
+      scorer.submitAndAwaitAsyncScores();
       CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
     }
   }

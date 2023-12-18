@@ -76,7 +76,8 @@ public class PQVectorScorer implements RandomVectorScorer {
     return decodedSimilarity(encoded);
   }
 
-  public CompletableFuture<Float> scoreAsync(int node) throws IOException {
+  @Override
+  public CompletableFuture<Float> prepareScoreAsync(int node) {
     var arena = Arena.ofConfined();
     int size = this.encodedRavv.dimension();
     var buffer = arena.allocate(size);
@@ -94,6 +95,12 @@ public class PQVectorScorer implements RandomVectorScorer {
           arena.close();
           return score;
         });
+  }
+
+  @Override
+  public void submitAndAwaitAsyncScores() {
+    this.encodedUring.submit();
+    this.encodedUring.awaitAll();
   }
 
   private float decodedSimilarity(byte[] encoded) {

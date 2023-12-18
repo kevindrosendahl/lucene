@@ -31,8 +31,12 @@ public interface RandomVectorScorer {
    */
   float score(int node) throws IOException;
 
-  default CompletableFuture<Float> scoreAsync(int node) throws IOException {
+  default CompletableFuture<Float> prepareScoreAsync(int node) throws IOException {
     return CompletableFuture.completedFuture(score(node));
+  }
+
+  default void submitAndAwaitAsyncScores() {
+    // no-op
   }
 
   /**
