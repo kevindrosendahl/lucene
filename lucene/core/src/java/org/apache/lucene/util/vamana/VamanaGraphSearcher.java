@@ -300,7 +300,6 @@ public class VamanaGraphSearcher {
       }
 
       graph.submitAsyncNeighbors();
-      System.out.println("futures.size() = " + futures.size());
       CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
     }
   }
