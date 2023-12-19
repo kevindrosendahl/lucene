@@ -265,6 +265,7 @@ public class VamanaGraphSearcher {
         var scoredFuture =
             future.thenAccept(
                 neighbors -> {
+                  results.cacheNode(frontierNode);
                   int friendOrd;
                   while (neighbors.hasNext()) {
                     friendOrd = neighbors.nextInt();
