@@ -45,6 +45,12 @@ public class VamanaGraphSearcher {
   private static final int PARALLEL_NEIGHBORHOODS_BEAM_WIDTH =
       getIntEnv("VAMANA_PARALLEL_NEIGHBORHOODS_BEAM_WIDTH", 1);
 
+  static {
+    if (PARALLEL_PQ_VECTORS && PARALLEL_NEIGHBORHOODS) {
+      throw new RuntimeException("cannot do parallel pq and parallel neighbors");
+    }
+  }
+
   public record CachedNode(float[] vector, int[] neighbors) {}
 
   /**
@@ -197,6 +203,8 @@ public class VamanaGraphSearcher {
 
     if (PARALLEL_PQ_VECTORS) {
       parallelPqVectorsSearch(results, scorer, graph, acceptOrds, size);
+    } else if (PARALLEL_NEIGHBORHOODS) {
+      parallelNeighborhoodSearch(results, scorer, graph, acceptOrds, size);
     } else {
       sequentialSearch(results, scorer, graph, acceptOrds, size);
     }
