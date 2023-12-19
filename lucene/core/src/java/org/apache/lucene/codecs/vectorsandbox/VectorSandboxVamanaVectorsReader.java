@@ -981,6 +981,7 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       var iterFuture =
           future.thenApply(
               nothing -> {
+                System.out.println("decoding neighbors");
                 int i = 0;
 
                 // From DataInput::readVInt.
