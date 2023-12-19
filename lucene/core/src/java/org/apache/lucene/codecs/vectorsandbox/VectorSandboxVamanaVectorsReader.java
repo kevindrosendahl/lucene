@@ -113,6 +113,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
   private static final boolean PARALLEL_PQ_VECTORS = getBoolEnv("VAMANA_PARALLEL_PQ_VECTORS");
 
+  private static final boolean PARALLEL_NEIGHBORHOODS = getBoolEnv("VAMANA_PARALLEL_NEIGHBORHOODS");
+
   private static final long SHALLOW_SIZE =
       RamUsageEstimator.shallowSizeOfInstance(VectorSandboxVamanaVectorsFormat.class);
 
@@ -128,9 +130,11 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private final VectorSandboxScalarQuantizedVectorsReader quantizedVectorsReader;
   private final IoUring.FileFactory rerankUringFactory;
   private final IoUring.FileFactory pqUringFactory;
+  private final IoUring.FileFactory graphUringFactory;
   private final FileChannel channel;
   private final ThreadLocal<IoUring> rerankUring;
   private final ThreadLocal<IoUring> pqUring;
+  private final ThreadLocal<IoUring> graphUring;
 
   VectorSandboxVamanaVectorsReader(SegmentReadState state, PQRerank pqRerank) throws IOException {
     this.fieldInfos = state.fieldInfos;
@@ -219,6 +223,22 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
       } else {
         pqUringFactory = null;
         pqUring = null;
+      }
+
+      if (PARALLEL_NEIGHBORHOODS) {
+        Path vectorFileName =
+            ((FSDirectory) state.directory)
+                .getDirectory()
+                .resolve(
+                    IndexFileNames.segmentFileName(
+                        state.segmentInfo.name,
+                        state.segmentSuffix,
+                        VectorSandboxVamanaVectorsFormat.VECTOR_INDEX_EXTENSION));
+        graphUringFactory = IoUring.factory(vectorFileName, IO_URING_DIRECT_IO);
+        graphUring = ThreadLocal.withInitial(() -> graphUringFactory.create(CANDIDATES));
+      } else {
+        graphUringFactory = null;
+        graphUring = null;
       }
 
       if (fields.values().stream().anyMatch(FieldEntry::hasQuantizedVectors)) {
@@ -713,7 +733,8 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   }
 
   private OffHeapVamanaGraph getGraph(FieldEntry entry) throws IOException {
-    return new OffHeapVamanaGraph(entry, vectorIndex);
+    return new OffHeapVamanaGraph(
+        entry, vectorIndex, PARALLEL_NEIGHBORHOODS ? graphUring.get() : null);
   }
 
   @Override
@@ -879,6 +900,9 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
   private static final class OffHeapVamanaGraph extends VamanaGraph {
 
     final IndexInput dataIn;
+    final IoUring ring;
+    final long indexOffset;
+    final long indexLength;
     final int entryNode;
     final int size;
     final int dimensions;
@@ -893,9 +917,12 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
     private final int vectorSize;
     private final boolean inGraphVectors;
 
-    OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex) throws IOException {
+    OffHeapVamanaGraph(FieldEntry entry, IndexInput vectorIndex, IoUring ring) throws IOException {
       this.dataIn =
           vectorIndex.slice("graph-data", entry.vectorIndexOffset, entry.vectorIndexLength);
+      this.ring = ring;
+      this.indexOffset = entry.vectorIndexOffset;
+      this.indexLength = entry.vectorIndexLength;
       this.entryNode = entry.entryNode;
       this.size = entry.size();
       this.dimensions = entry.dimension;
@@ -933,6 +960,77 @@ public final class VectorSandboxVamanaVectorsReader extends KnnVectorsReader
 
       arc = -1;
       arcUpTo = 0;
+    }
+
+    @Override
+    public CompletableFuture<NodesIterator> prepareNeighborsAsync(int targetOrd) {
+      var arena = Arena.ofConfined();
+      // vint encoded, up to 1 int of num neighbors, then up to 32 ints for each neighbor
+      int maxSize = Integer.BYTES + 32 * Integer.BYTES;
+      var buffer = arena.allocate(maxSize);
+
+      var targetOffset = graphNodeOffsets.get(targetOrd);
+      var vectorOffset = inGraphVectors ? this.vectorSize : 0;
+      var offset = indexOffset + targetOffset + vectorOffset;
+
+      // read up to the end of the file or the full maxSize
+      var endOfIndex = indexOffset + indexLength;
+      var readSize = (int) Math.min(maxSize, endOfIndex - offset);
+
+      var future = this.ring.prepare(buffer, readSize, offset);
+      var iterFuture =
+          future.thenApply(
+              nothing -> {
+                int i = 0;
+
+                // From DataInput::readVInt.
+                byte b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                int numNeighbors = b & 0x7F;
+                for (int shift = 7; (b & 0x80) != 0; shift += 7) {
+                  b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                  numNeighbors |= (b & 0x7F) << shift;
+                }
+
+                if (numNeighbors == 0) {
+                  return ArrayNodesIterator.EMPTY;
+                }
+
+                int[] neighbors = new int[numNeighbors];
+
+                // read first neighbor by itself
+                b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                neighbors[0] = b & 0x7F;
+                for (int shift = 7; (b & 0x80) != 0; shift += 7) {
+                  b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                  neighbors[0] |= (b & 0x7F) << shift;
+                }
+
+                // read the rest of the neighbors now that we have the initial delta
+                for (int j = 1; j < numNeighbors; j++) {
+                  b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                  int delta = b & 0x7F;
+                  for (int shift = 7; (b & 0x80) != 0; shift += 7) {
+                    b = buffer.getAtIndex(ValueLayout.JAVA_BYTE, i++);
+                    delta |= (b & 0x7F) << shift;
+                  }
+
+                  neighbors[j] = neighbors[j - 1] + delta;
+                }
+
+                return new ArrayNodesIterator(neighbors, numNeighbors);
+              });
+
+      return iterFuture.handle(
+          (neighbors, throwable) -> {
+            arena.close();
+            return neighbors;
+          });
+    }
+
+    @Override
+    public void submitAsyncNeighbors() {
+      this.ring.submit();
+      this.ring.awaitAll();
     }
 
     @Override

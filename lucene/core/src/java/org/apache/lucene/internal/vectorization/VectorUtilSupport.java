@@ -18,6 +18,7 @@
 package org.apache.lucene.internal.vectorization;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * Interface for implementations of VectorUtil support.
@@ -54,6 +55,16 @@ public interface VectorUtilSupport {
     float sum = 0f;
     for (int i = 0; i < dataOffsets.length; i++) {
       sum += data[dataBase * i + Byte.toUnsignedInt(dataOffsets[i])];
+    }
+    return sum;
+  }
+
+  default float assembleAndSum(
+      float[] data, int dataBase, MemorySegment dataOffsets, int dataOffsetsLen) {
+    float sum = 0f;
+    for (int i = 0; i < dataOffsetsLen; i++) {
+      sum +=
+          data[dataBase * i + Byte.toUnsignedInt(dataOffsets.getAtIndex(ValueLayout.JAVA_BYTE, i))];
     }
     return sum;
   }

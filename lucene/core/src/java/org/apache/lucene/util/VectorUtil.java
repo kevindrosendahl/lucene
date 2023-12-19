@@ -213,4 +213,9 @@ public final class VectorUtil {
   public static float assembleAndSum(float[] data, int dataBase, byte[] dataOffsets) {
     return IMPL.assembleAndSum(data, dataBase, dataOffsets);
   }
+
+  public static float assembleAndSum(
+      float[] data, int dataBase, MemorySegment dataOffsets, int dataOffsetsLen) {
+    return IMPL.assembleAndSum(data, dataBase, dataOffsets, dataOffsetsLen);
+  }
 }

@@ -193,7 +193,7 @@ public class VamanaGraphSearcher {
     }
 
     if (PARALLEL_PQ_VECTORS) {
-      parallelNeighborSearch(results, scorer, graph, acceptOrds, size);
+      parallelPqVectorsSearch(results, scorer, graph, acceptOrds, size);
     } else {
       sequentialSearch(results, scorer, graph, acceptOrds, size);
     }
@@ -237,7 +237,45 @@ public class VamanaGraphSearcher {
     }
   }
 
-  private void parallelNeighborSearch(
+  private void parallelNeighborhoodSearch(
+      KnnCollector results, RandomVectorScorer scorer, VamanaGraph graph, Bits acceptOrds, int size)
+      throws IOException {
+    float minAcceptedSimilarity = results.minCompetitiveSimilarity();
+    while (candidates.size() > 0 && results.earlyTerminated() == false) {
+      // get the best candidate (closest or best scoring)
+      float topCandidateSimilarity = candidates.topScore();
+      if (topCandidateSimilarity < minAcceptedSimilarity) {
+        break;
+      }
+
+      int topCandidateNode = candidates.pop();
+      int friendOrd;
+      var neighbors = getNeighbors(results, graph, topCandidateNode);
+      while (neighbors.hasNext()) {
+        friendOrd = neighbors.nextInt();
+        assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
+        if (visited.getAndSet(friendOrd)) {
+          continue;
+        }
+
+        if (results.earlyTerminated()) {
+          break;
+        }
+        float friendSimilarity = scorer.score(friendOrd);
+        results.incVisitedCount(1);
+        if (friendSimilarity >= minAcceptedSimilarity) {
+          candidates.add(friendOrd, friendSimilarity);
+          if (acceptOrds == null || acceptOrds.get(friendOrd)) {
+            if (results.collect(friendOrd, friendSimilarity)) {
+              minAcceptedSimilarity = results.minCompetitiveSimilarity();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private void parallelPqVectorsSearch(
       KnnCollector results, RandomVectorScorer scorer, VamanaGraph graph, Bits acceptOrds, int size)
       throws IOException {
     // A bound that holds the minimum similarity to the query vector that a candidate vector must

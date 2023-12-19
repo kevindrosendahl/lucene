@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
+import java.util.concurrent.CompletableFuture;
 import org.apache.lucene.index.FloatVectorValues;
 
 /**
@@ -62,6 +63,14 @@ public abstract class VamanaGraph {
    *     FloatVectorValues#size()}.
    */
   public abstract void seek(int target) throws IOException;
+
+  public CompletableFuture<NodesIterator> prepareNeighborsAsync(int node) {
+    return CompletableFuture.failedFuture(new RuntimeException("unsupported"));
+  }
+
+  public void submitAsyncNeighbors() {
+    // no-op
+  }
 
   /** Returns the number of nodes in the graph */
   public abstract int size();
@@ -163,7 +172,7 @@ public abstract class VamanaGraph {
 
   /** NodesIterator that accepts nodes as an integer array. */
   public static class ArrayNodesIterator extends NodesIterator {
-    static NodesIterator EMPTY = new ArrayNodesIterator(0);
+    public static NodesIterator EMPTY = new ArrayNodesIterator(0);
 
     private final int[] nodes;
     private int cur = 0;
