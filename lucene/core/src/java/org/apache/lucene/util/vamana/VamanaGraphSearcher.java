@@ -41,6 +41,9 @@ import org.apache.lucene.util.vamana.VamanaGraph.NodesIterator;
 public class VamanaGraphSearcher {
 
   private static final boolean PARALLEL_PQ_VECTORS = getBoolEnv("VAMANA_PARALLEL_PQ_VECTORS");
+  private static final boolean PARALLEL_NEIGHBORHOODS = getBoolEnv("VAMANA_PARALLEL_NEIGHBORHOODS");
+  private static final int PARALLEL_NEIGHBORHOODS_BEAM_WIDTH =
+      getIntEnv("VAMANA_PARALLEL_NEIGHBORHOODS_BEAM_WIDTH", 1);
 
   public record CachedNode(float[] vector, int[] neighbors) {}
 
@@ -240,38 +243,56 @@ public class VamanaGraphSearcher {
   private void parallelNeighborhoodSearch(
       KnnCollector results, RandomVectorScorer scorer, VamanaGraph graph, Bits acceptOrds, int size)
       throws IOException {
-    float minAcceptedSimilarity = results.minCompetitiveSimilarity();
+    AtomicReference<Float> minAcceptedSimilarity =
+        new AtomicReference<>(results.minCompetitiveSimilarity());
     while (candidates.size() > 0 && results.earlyTerminated() == false) {
-      // get the best candidate (closest or best scoring)
-      float topCandidateSimilarity = candidates.topScore();
-      if (topCandidateSimilarity < minAcceptedSimilarity) {
-        break;
+      List<Integer> frontier = new ArrayList<>(PARALLEL_NEIGHBORHOODS_BEAM_WIDTH);
+      while (candidates.size() > 0 && frontier.size() < PARALLEL_NEIGHBORHOODS_BEAM_WIDTH) {
+        frontier.add(candidates.pop());
       }
 
-      int topCandidateNode = candidates.pop();
-      int friendOrd;
-      var neighbors = getNeighbors(results, graph, topCandidateNode);
-      while (neighbors.hasNext()) {
-        friendOrd = neighbors.nextInt();
-        assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
-        if (visited.getAndSet(friendOrd)) {
-          continue;
-        }
+      List<CompletableFuture<?>> futures = new ArrayList<>(frontier.size());
+      for (int frontierNode : frontier) {
+        var future = graph.prepareNeighborsAsync(frontierNode);
+        var scoredFuture =
+            future.thenAccept(
+                neighbors -> {
+                  int friendOrd;
+                  while (neighbors.hasNext()) {
+                    friendOrd = neighbors.nextInt();
+                    assert friendOrd < size : "friendOrd=" + friendOrd + "; size=" + size;
+                    if (visited.getAndSet(friendOrd)) {
+                      continue;
+                    }
 
-        if (results.earlyTerminated()) {
-          break;
-        }
-        float friendSimilarity = scorer.score(friendOrd);
-        results.incVisitedCount(1);
-        if (friendSimilarity >= minAcceptedSimilarity) {
-          candidates.add(friendOrd, friendSimilarity);
-          if (acceptOrds == null || acceptOrds.get(friendOrd)) {
-            if (results.collect(friendOrd, friendSimilarity)) {
-              minAcceptedSimilarity = results.minCompetitiveSimilarity();
-            }
-          }
-        }
+                    if (results.earlyTerminated()) {
+                      break;
+                    }
+
+                    float friendSimilarity = 0;
+                    try {
+                      friendSimilarity = scorer.score(friendOrd);
+                    } catch (IOException e) {
+                      throw new RuntimeException(e);
+                    }
+
+                    results.incVisitedCount(1);
+                    if (friendSimilarity >= minAcceptedSimilarity.get()) {
+                      candidates.add(friendOrd, friendSimilarity);
+                      if (acceptOrds == null || acceptOrds.get(friendOrd)) {
+                        if (results.collect(friendOrd, friendSimilarity)) {
+                          minAcceptedSimilarity.set(results.minCompetitiveSimilarity());
+                        }
+                      }
+                    }
+                  }
+                });
+
+        futures.add(scoredFuture);
       }
+
+      graph.submitAsyncNeighbors();
+      CompletableFuture.allOf(futures.toArray(CompletableFuture<?>[]::new)).join();
     }
   }
 
@@ -411,5 +432,11 @@ public class VamanaGraphSearcher {
     return System.getenv(name) != null
         && !System.getenv(name).equals("null")
         && Boolean.parseBoolean(System.getenv(name));
+  }
+
+  private static int getIntEnv(String name, int defaultValue) {
+    return System.getenv(name) == null || System.getenv(name).equals("null")
+        ? defaultValue
+        : Integer.parseInt(System.getenv(name));
   }
 }
